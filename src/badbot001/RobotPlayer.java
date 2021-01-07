@@ -62,22 +62,26 @@ public strictfp class RobotPlayer {
     }
 
     static void runEnlightenmentCenter() throws GameActionException {
-        RobotType toBuild = randomSpawnableRobotType();
-        int influence = rc.getInfluence()/4;
-        for (Direction dir : directions) {
-            if (rc.canBuildRobot(toBuild, dir, influence)) {
-                rc.buildRobot(toBuild, dir, influence);
-            } else {
-                break;
-            }
-        }
+        RobotType toBuild = whichRobotType(rc);
+        Direction rd = randomDirection();
+        if(toBuild == RobotType.SLANDERER)
+            if(rc.canBuildRobot(toBuild, rd, 20))
+                rc.buildRobot(toBuild, rd, 20);
+        if(toBuild == RobotType.MUCKRAKER)
+            if(rc.canBuildRobot(toBuild, rd, 1))
+                rc.buildRobot(toBuild, rd, 1);
+        if(toBuild == RobotType.POLITICIAN)
+            if(rc.canBuildRobot(toBuild, rd, 50 + rc.getInfluence()/2))
+                rc.buildRobot(toBuild, rd, 50 + rc.getInfluence()/2);
+        if(rc.canBid(rc.getInfluence()/2) && rc.getInfluence() > 100)
+            rc.bid(rc.getInfluence()/2);
     }
 
     static void runPolitician() throws GameActionException {
         Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
-        if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
+        if (attackable.length > 3 && rc.canEmpower(actionRadius)) {
             System.out.println("empowering...");
             rc.empower(actionRadius);
             System.out.println("empowered");
@@ -123,8 +127,18 @@ public strictfp class RobotPlayer {
      *
      * @return a random RobotType
      */
-    static RobotType randomSpawnableRobotType() {
-        return spawnableRobot[(int) (Math.random() * spawnableRobot.length)];
+    static RobotType whichRobotType(RobotController rc) {
+    /**
+     Weighted Random modification: (round num)/6000 probability of politician, with rest evenly distributed
+    */
+    double p = Math.random();
+    if(p < 0.25)
+        return RobotType.MUCKRAKER;
+    if(rc.getInfluence() >= 20 && rc.getRoundNum() < 300)
+        return RobotType.SLANDERER;
+    if(rc.getInfluence() >= 50 && rc.getRoundNum() > 2000)
+        return RobotType.POLITICIAN;
+    return null;
     }
 
     /**
