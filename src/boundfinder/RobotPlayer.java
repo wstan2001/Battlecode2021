@@ -1,4 +1,4 @@
-package examplefuncsplayer;
+package boundfinder;
 import battlecode.common.*;
 import java.util.ArrayList;
 
@@ -48,6 +48,8 @@ public strictfp class RobotPlayer {
         RobotPlayer.rc = rc;
 
         turnCount = 0;
+
+        System.out.println("test");
 
         System.out.println("I'm a " + rc.getType() + " and I just got created!");
         while (true) {
@@ -140,14 +142,6 @@ public strictfp class RobotPlayer {
         if (yBound1 != -1) 
             System.out.println("yBound1: " + yBound1);
         
-
-        /*for (Direction dir : directions) {
-            if (rc.canBuildRobot(toBuild, dir, influence)) {
-                rc.buildRobot(toBuild, dir, influence);
-            } else {
-                break;
-            }
-        }*/
     }
 
     static void runPolitician() throws GameActionException {
@@ -155,6 +149,7 @@ public strictfp class RobotPlayer {
         Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         final int senseRadius = 25;
+        final double baseCooldown = 1.0;
 
         /*
         POLITICIAN FLAG CODE:
@@ -233,37 +228,56 @@ public strictfp class RobotPlayer {
 
         //figure out where to move next
         Direction heading = Direction.CENTER;
+        ArrayList<Direction> headings = new ArrayList<Direction>();
 
         if (sign == -1) {
-            if (!foundXBound && !foundYBound)
-                heading = Direction.SOUTHWEST;
-            else if (!foundXBound) 
-                heading = Direction.WEST;
-            else if (!foundYBound)
-                heading = Direction.SOUTH;
+            if (!foundXBound && !foundYBound) {
+                headings.add(Direction.SOUTHWEST);
+                headings.add(Direction.WEST);
+                headings.add(Direction.SOUTH);
+            }
+            else if (!foundXBound) {
+                headings.add(Direction.WEST);
+                headings.add(Direction.SOUTHWEST);
+                headings.add(Direction.NORTHWEST);
+            }
+            else if (!foundYBound) {
+                headings.add(Direction.SOUTH);
+                headings.add(Direction.SOUTHWEST);
+                headings.add(Direction.SOUTHEAST);
+            }
         }
         else if (sign == 1) {
-            if (!foundXBound && !foundYBound)
-                heading = Direction.NORTHEAST;
-            else if (!foundXBound) 
-                heading = Direction.EAST;
-            else if (!foundYBound)
-                heading = Direction.NORTH;
+            if (!foundXBound && !foundYBound) {
+                headings.add(Direction.NORTHEAST);
+                headings.add(Direction.EAST);
+                headings.add(Direction.NORTH);
+            }
+            else if (!foundXBound) {
+                headings.add(Direction.EAST);
+                headings.add(Direction.NORTHEAST);
+                headings.add(Direction.SOUTHEAST);
+            }
+            else if (!foundYBound) {
+                headings.add(Direction.NORTH);
+                headings.add(Direction.NORTHEAST);
+                headings.add(Direction.NORTHWEST);
+            }
         }
 
-        if (rc.canMove(heading)) {
+        MapLocation curloc = rc.getLocation();
+        double minPenalty = 999;
+        for (Direction h : headings) {
+            double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
+            if (rc.canMove(h) && adjPenalty < minPenalty - 1) {
+                heading = h;
+                minPenalty = adjPenalty;
+            }
+        }
+        if (heading != Direction.CENTER && rc.canMove(heading)) {
             rc.move(heading);
         }
  
-        /*RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
-        if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
-            System.out.println("empowering...");
-            rc.empower(actionRadius);
-            System.out.println("empowered");
-            return;
-        }
-        if (tryMove(randomDirection()))
-            System.out.println("I moved!");*/
     }
 
     static void runSlanderer() throws GameActionException {
