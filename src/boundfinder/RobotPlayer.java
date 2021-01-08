@@ -1,6 +1,8 @@
 package boundfinder;
 import battlecode.common.*;
 import java.util.ArrayList;
+import java.util.Random;
+import java.lang.Math;
 
 public strictfp class RobotPlayer {
     static RobotController rc;
@@ -22,7 +24,10 @@ public strictfp class RobotPlayer {
         Direction.NORTHWEST,
     };
 
+    static final int[] dirHelper = {0, 1, -1, 2, -2, 3, -3, 4};         //help with pathing
+
     static int turnCount;
+    static Random rng = new Random();
 
     //EC state variables
     static ArrayList<Integer> botIDs = new ArrayList<Integer>();        //keep track of scout IDs
@@ -34,7 +39,7 @@ public strictfp class RobotPlayer {
     //Politician state variables
     static boolean foundXBound = false;
     static boolean foundYBound = false;
-    static int sign = 0;       //-1 means exploring southwest, +1 means exploring northeast
+    static int generalDir = -1;       //the general direction robot should move in, int from 0 to 7
 
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -49,16 +54,12 @@ public strictfp class RobotPlayer {
 
         turnCount = 0;
 
-        System.out.println("test");
-
-        System.out.println("I'm a " + rc.getType() + " and I just got created!");
         while (true) {
             turnCount += 1;
             // Try/catch blocks stop unhandled exceptions, which cause your robot to freeze
             try {
                 // Here, we've separated the controls into a different method for each RobotType.
                 // You may rewrite this into your own control structure if you wish.
-                System.out.println("I'm a " + rc.getType() + "! Location " + rc.getLocation());
                 switch (rc.getType()) {
                     case ENLIGHTENMENT_CENTER: runEnlightenmentCenter(); break;
                     case POLITICIAN:           runPolitician();          break;
@@ -81,66 +82,48 @@ public strictfp class RobotPlayer {
         Direction buildDir;
         int influence = 1;
 
-        System.out.println("Conviction: " + rc.getConviction());
-        System.out.println("Influence: " + rc.getInfluence());
+        //System.out.println("Conviction: " + rc.getConviction());
+        //System.out.println("Influence: " + rc.getInfluence());
 
-        if (rc.getRoundNum() == 1) {
-            //try building a robot to southwest, if this isn't possible build north
-            rc.setFlag(0);
-            buildDir = Direction.SOUTHWEST;
-            if (!rc.canBuildRobot(toBuild, buildDir, influence)) 
-                buildDir = Direction.NORTH;
-            if (rc.canBuildRobot(toBuild, buildDir, influence)) {
-                rc.buildRobot(toBuild, buildDir, influence);
-                RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
-                botIDs.add(rinfo.getID());
-            }
-        }
-        else if (rc.getRoundNum() == 20) {
-            //try building a robot to northeast, if this isn't possible build south
-            rc.setFlag(1);
-            buildDir = Direction.NORTHEAST;
-            if (!rc.canBuildRobot(toBuild, buildDir, influence)) 
-                buildDir = Direction.SOUTH;
-            if (rc.canBuildRobot(toBuild, buildDir, influence)) {
-                rc.buildRobot(toBuild, buildDir, influence);
-                RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
-                botIDs.add(rinfo.getID());
+        if (rc.getRoundNum() % 5 == 0 && botIDs.size() < 10) {
+            int randDirection = rng.nextInt(8);
+            rc.setFlag(randDirection);
+            for (int i : dirHelper) {
+                buildDir = directions[Math.abs(randDirection + i) % 7];
+                if (rc.canBuildRobot(toBuild, buildDir, influence)) {
+                    rc.buildRobot(toBuild, buildDir, influence);
+                    RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
+                    botIDs.add(rinfo.getID());
+                    break;
+                }
             }
         }
 
-        if (botIDs.size() >= 2) {
-            int flag0 = -1;
-            int flag1 = -1;
-            if (rc.canGetFlag(botIDs.get(0))) {
-                flag0 = rc.getFlag(botIDs.get(0));      //southwest bot flag
+        botIDs.removeIf(id -> !rc.canGetFlag(id));          //purge dead scouts
+        for (Integer id : botIDs) {
+            int flag = rc.getFlag(id);
+            if (yBound0 == -1 && ((flag >> 7) & 1) == 1  && ((flag >> 6) & 1) == 0) {
+                yBound0 = flag % 64;
             }
-            if (rc.canGetFlag(botIDs.get(1))) {
-                flag1 = rc.getFlag(botIDs.get(1));      //southwest bot flag
+            if (xBound0 == -1 && ((flag >> 15) & 1) == 1 && ((flag >> 14) & 1) == 0) {
+                xBound0 = (flag >> 8) % 64;
             }
-
-            if (yBound0 == -1 && flag0 != -1 && ((flag0 >> 6) & 1) == 1) {
-                yBound0 = flag0 % 64;
+            if (yBound1 == -1 && ((flag >> 7) & 1) == 1 && ((flag >> 6) & 1) == 1) {
+                yBound1 = flag % 64;
             }
-            if (xBound0 == -1 && flag0 != -1 && ((flag0 >> 13) & 1) == 1) {
-                xBound0 = (flag0 >> 7) % 64;
-            }
-            if (yBound1 == -1 && flag1 != -1 && ((flag1 >> 6) & 1) == 1) {
-                yBound1 = flag1 % 64;
-            }
-            if (xBound1 == -1 && flag1 != -1 && ((flag1 >> 13) & 1) == 1) {
-                xBound1 = (flag1 >> 7) % 64;
+            if (xBound1 == -1 && ((flag >> 15) & 1) == 1 && ((flag >> 14) & 1) == 1) {
+                xBound1 = (flag >> 8) % 64;
             }
         }
 
-        if (xBound0 != -1) 
+        /*if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
         if (yBound0 != -1) 
             System.out.println("yBound0: " + yBound0);
         if (xBound1 != -1) 
             System.out.println("xBound1: " + xBound1);
         if (yBound1 != -1) 
-            System.out.println("yBound1: " + yBound1);
+            System.out.println("yBound1: " + yBound1);*/
         
     }
 
@@ -159,119 +142,118 @@ public strictfp class RobotPlayer {
         00000000 | 00000000 | 00000000
         ^ bit 23                     ^ bit 0
 
-        bits[5:0] = mod64 of y coord boundary of map
-        bit 6 = 1 iff bot has finished the exploration of y boundary
+        Bits[5:0] = mod 64 of y coord boundary of map
+        Bit 6 = 1 if top boundary, 0 if bottom boundary
+        Bit 7 = 1 iff bot has finished exploration of y boundary
 
-        bits[12:7]] = mod64 digits of x coord boundary of map
-        bit 13 = 1 iff bot has finished exploration of x boundary
-
+        Bits[13:8] = mod 64 of x coord boundary of map
+        Bit 14 = 1 if right boundary, 0 if left boundary
+        Bit 15 = 1 iff bot has finished exploration of x boundary
         */
 
-        if (sign == 0) {    //robot is uninitialized
-            RobotInfo[] nearbyAllies = rc.senseNearbyRobots(senseRadius, ally);
+        if (generalDir == -1) {    //robot is uninitialized
+            RobotInfo[] nearbyAllies = rc.senseNearbyRobots(2, ally);
             for (RobotInfo rinfo : nearbyAllies) {
                 if (rinfo.type == RobotType.ENLIGHTENMENT_CENTER) {
-                    if (rc.getFlag(rinfo.getID()) == 0) {
-                        sign = -1;      //go southwest
-                    }
-                    else if (rc.getFlag(rinfo.getID()) == 1) {
-                        sign = 1;       //go northeast
+                    generalDir = rc.getFlag(rinfo.getID());
+                    if (generalDir < 0 || generalDir > 7) {
+                        System.out.println("Something went wrong! Scout read wrong message from wrong EC!");
+                        generalDir = Math.abs(generalDir);
+                        generalDir %= 7;
                     }
                     break;
                 }
             }
         }
 
-        System.out.println("Sign: " + sign);
+        //System.out.println("General Direction: " + directions[generalDir]);
 
         //check if done exploring
         if (foundXBound && foundYBound) {
             //robot is done exploring
-            System.out.println("Exploration over!");
             return;
         }
 
+        //resume coding from here!
+
         if (!foundYBound) {
-            //sense y boundary
+            //sense top y boundary
             int breakpoint = 0;
             for (int i = 1; i <= 5; i++) {
-                if (!rc.onTheMap(rc.getLocation().translate(0, i * sign))) {
+                if (!rc.onTheMap(rc.getLocation().translate(0, i))) {
                     breakpoint = i-1;
                     break;
                 }
             }
             if (breakpoint != 0) {
-                //we found y boundary
-                int ybound_mod64 = (rc.getLocation().y + breakpoint * sign) % 64;
+                //we found top y boundary
+                int ybound_mod64 = (rc.getLocation().y + breakpoint) % 64;
                 foundYBound = true;
-                rc.setFlag(rc.getFlag(rc.getID()) + ybound_mod64 + (1 << 6));
+                rc.setFlag(rc.getFlag(rc.getID()) + ybound_mod64 + (1 << 6) + (1 << 7));
+            }
+
+            //sense bot y boundary
+            breakpoint = 0;
+            for (int i = 1; i <= 5; i++) {
+                if (!rc.onTheMap(rc.getLocation().translate(0, i * -1))) {
+                    breakpoint = i-1;
+                    break;
+                }
+            }
+            if (breakpoint != 0) {
+                //we found bot y boundary
+                int ybound_mod64 = (rc.getLocation().y + breakpoint * -1) % 64;
+                foundYBound = true;
+                rc.setFlag(rc.getFlag(rc.getID()) + ybound_mod64 + (0 << 6) + (1 << 7));
             }
         }
 
         if (!foundXBound) {
-            //sense x boundary
+            //sense right x boundary
             int breakpoint = 0;
             for (int i = 1; i <= 5; i++) {
-                if (!rc.onTheMap(rc.getLocation().translate(i * sign, 0))) {
+                if (!rc.onTheMap(rc.getLocation().translate(i, 0))) {
                     breakpoint = i-1;
                     break;
                 }
             }
             if (breakpoint != 0) {
-                //we found x boundary
-                int xbound_mod64 = (rc.getLocation().x + breakpoint * sign) % 64;
+                //we found right x boundary
+                int xbound_mod64 = (rc.getLocation().x + breakpoint) % 64;
                 foundXBound = true;
-                rc.setFlag(rc.getFlag(rc.getID()) + xbound_mod64 * (1 << 7) + (1 << 13));
+                rc.setFlag(rc.getFlag(rc.getID()) + xbound_mod64 * (1 << 8) + (1 << 14) + (1 << 15));
+            }
+
+            //sense left x boundary
+            breakpoint = 0;
+            for (int i = 1; i <= 5; i++) {
+                if (!rc.onTheMap(rc.getLocation().translate(i * -1, 0))) {
+                    breakpoint = i-1;
+                    break;
+                }
+            }
+            if (breakpoint != 0) {
+                //we found left x boundary
+                int xbound_mod64 = (rc.getLocation().x + breakpoint * -1) % 64;
+                foundXBound = true;
+                rc.setFlag(rc.getFlag(rc.getID()) + xbound_mod64 * (1 << 8) + (0 << 14) + (1 << 15));
             }
         }
 
 
         //figure out where to move next
         Direction heading = Direction.CENTER;
-        ArrayList<Direction> headings = new ArrayList<Direction>();
-
-        if (sign == -1) {
-            if (!foundXBound && !foundYBound) {
-                headings.add(Direction.SOUTHWEST);
-                headings.add(Direction.WEST);
-                headings.add(Direction.SOUTH);
-            }
-            else if (!foundXBound) {
-                headings.add(Direction.WEST);
-                headings.add(Direction.SOUTHWEST);
-                headings.add(Direction.NORTHWEST);
-            }
-            else if (!foundYBound) {
-                headings.add(Direction.SOUTH);
-                headings.add(Direction.SOUTHWEST);
-                headings.add(Direction.SOUTHEAST);
-            }
-        }
-        else if (sign == 1) {
-            if (!foundXBound && !foundYBound) {
-                headings.add(Direction.NORTHEAST);
-                headings.add(Direction.EAST);
-                headings.add(Direction.NORTH);
-            }
-            else if (!foundXBound) {
-                headings.add(Direction.EAST);
-                headings.add(Direction.NORTHEAST);
-                headings.add(Direction.SOUTHEAST);
-            }
-            else if (!foundYBound) {
-                headings.add(Direction.NORTH);
-                headings.add(Direction.NORTHEAST);
-                headings.add(Direction.NORTHWEST);
-            }
-        }
-
         MapLocation curloc = rc.getLocation();
         double minPenalty = 999;
-        for (Direction h : headings) {
-            double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
-            if (rc.canMove(h) && adjPenalty < minPenalty - 1) {
-                heading = h;
-                minPenalty = adjPenalty;
+        int[] temp = {0, 1, -1};        //move roughly according to general direction
+        for (int i : temp) {
+            Direction h = directions[Math.abs(generalDir + i) % 7];
+            if (rc.canSenseLocation(curloc.add(h))) {
+                double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
+                if (rc.canMove(h) && adjPenalty < minPenalty - 1) {
+                    heading = h;
+                    minPenalty = adjPenalty;
+                }
             }
         }
         if (heading != Direction.CENTER && rc.canMove(heading)) {
