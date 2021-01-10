@@ -23,11 +23,20 @@ public strictfp class RobotPlayer {
     };
 
     public enum OPCODE {
-    	MOVE, SCOUT, NEEDECID, SENDINGECID, INVALID;
+    	MOVE, //move to specified location   [0(4) | x-coord(6) | y-coord (6) | random data (8)]
+    	SCOUT, //tells units to scout [1(4) | random data (20)]
+    	NEEDECID, //units will broadcast this if they don't have an EC ID [2(4) | random data(20)]
+    	SENDINGECID, //EC will broadcast this when it broadcasts its ID [3(4) | id (20)]
+    	SCOUTBOUNDARIES, //scouts will broadcast this when it finds a boundary [4(4) | stanley help with format]
+    	SENDINGCOORDINATES, // units sending coordinates of important locations [5(4) | x_coord (6) | y_coord (6) | data (8)] data will depend on information it sends
+    	INVALID;
+    	//example: let's say we want to tell a unit to move to (15, 16). 15 = 001111 and 16 = 010000, the move opcode is 0000, and the data is 8 random bits. So a valid opcode for this would be
+    	//0000 | 001111 | 010000 | 10101010 = 245913.
+    	//a scout opcode would be something like 0001 | 10101010101010101010, since we don't care about the last 20 bits.
     } 
     static int turnCount;
     static int ecID = 0;
-    static Deque<Integer> instructionQueue = new ArrayDeque<>(); 
+    static Deque<Integer> instructionQueue = new ArrayDeque<>(); //stores instructions from EC and executes them sequentially
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
      * If this method returns, the robot dies!
@@ -64,7 +73,7 @@ public strictfp class RobotPlayer {
             }
         }
     }
-    static int opcodeToInt(OPCODE op)
+    static int opcodeToInt(OPCODE op) //need to be changed when new opcode added
     {
     	switch(op)
     	{
@@ -72,10 +81,12 @@ public strictfp class RobotPlayer {
     	    case SCOUT: return 1;
     	    case NEEDECID: return 2;
     	    case SENDINGECID: return 3;
+    	    case SCOUTBOUNDARIES: return 4;
+    	    case SENDINGCOORDINATES: return 5;
     	}
     	return -1;
     }
-    static OPCODE intToOpcode(int op)
+    static OPCODE intToOpcode(int op) //need to be changed when new opcode added
     {
     	switch(op)
     	{
@@ -83,10 +94,12 @@ public strictfp class RobotPlayer {
     	    case 1: return OPCODE.SCOUT;
     	    case 2: return OPCODE.NEEDECID;
     	    case 3: return OPCODE.SENDINGECID;
+    	    case 4: return OPCODE.SCOUTBOUNDARIES;
+    	    case 5: return OPCODE.SENDINGCOORDINATES;
     	}
     	return OPCODE.INVALID;
     }
-    static int encodeInstruction(OPCODE op, int x, int y, int data)
+    static int encodeInstruction(OPCODE op, int x, int y, int data) //MOVE, SCOUT, NEEDECID, SENDINGCOORDINATES
     {
     	if(opcodeToInt(op) == -1)
     	    System.out.println("INVALID OPCODE RECEIVED");
@@ -112,12 +125,41 @@ public strictfp class RobotPlayer {
     }
     static Direction pathFind(int x, int y)
     {
-    	//todo
+    	//todo stanley 
     	return Direction.WEST;
     }
+    static int getECID() throws GameActionException 
+    {
+        for (RobotInfo ri : rc.senseNearbyRobots(-1, rc.getTeam()))
+            if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
+                return ri.ID;
+        return 0; //could not find EC
+    }
+    static int getECFlag() throws GameActionException 
+    {
+        if(rc.canGetFlag(ecID))
+        {
+            int flag = rc.getFlag(ecID);
+            System.out.println("Flag found: " + flag);
+            return flag;
+        }
+        return 0;
+    }
+    static void executeInstr(int instr) throws GameActionException
+    {
+        OPCODE op = opcode(instr);
+        switch(op)
+        {
+            case MOVE: tryMove(pathFind(instrX(instr), instrY(instr))); break;
+            case SCOUT: tryMove(randomDirection()); break;
+            default: break;
+        }
+        return;
+    } 
+    
     static void runEnlightenmentCenter() throws GameActionException {
         RobotType toBuild = randomSpawnableRobotType();
-        int influence = rc.getInfluence()/5;
+        int influence = rc.getInfluence()/5; //heuristic 
         if(influence > 20)
             for (Direction dir : directions) {
                 if (rc.canBuildRobot(toBuild, dir, influence)) {
@@ -126,10 +168,12 @@ public strictfp class RobotPlayer {
                     break;
                 }
             }
+            
         if(rc.getInfluence() > 300)
             if(rc.canBid(20))
                 rc.bid(20);
-        if(turnCount % 2 == 0)
+        
+        if(turnCount % 2 == 0) //example functions
         {
             if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, 1, 0, 0))) //op, xcoord, ycoord, data
                 rc.setFlag(encodeInstruction(OPCODE.MOVE, 1, 0, 0));
@@ -138,21 +182,7 @@ public strictfp class RobotPlayer {
             if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 1, 0, 0))) //op, xcoord, ycoord, data
                 rc.setFlag(encodeInstruction(OPCODE.SCOUT, 1, 0, 0));
     }
-    static void runPolitician() throws GameActionException {
-        if(ecID == 0)
-            for (RobotInfo ri : rc.senseNearbyRobots(-1, rc.getTeam()))
-                if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
-                    ecID = ri.ID;
-        System.out.println("ECID: " + ecID);
-        if(ecID != 0)    
-            if(rc.canGetFlag(ecID))
-            {
-                int flag = rc.getFlag(ecID);
-                System.out.println("Flag found: " + flag);
-                if(flag != 0)
-                    instructionQueue.addLast(flag);
-            }
-	
+    static void politicianSpeech() throws GameActionException {
         Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
@@ -162,37 +192,61 @@ public strictfp class RobotPlayer {
             System.out.println("empowered");
             return;
         }
+    }
+    static void runPolitician() throws GameActionException {
         if(ecID == 0)
+            ecID = getECID();
+        System.out.println("ECID: " + ecID);
+        
+        if(ecID != 0 && getECFlag() != 0)
+            instructionQueue.addLast(getECFlag());
+	
+	//always execute this
+	politicianSpeech();
+        
+        if (!rc.isReady())
+            return;
+        
+        //execute this when no instructions remaining from EC
+        if(instructionQueue.isEmpty())
+        {
             tryMove(randomDirection());
-        if(instructionQueue.isEmpty() || !rc.isReady())
-            return;    
+            return;
+        }
+
+        //otherwise, execute first instruction in queue
         int instr = instructionQueue.removeFirst();        
         System.out.println("received instruction: " + instr);
-        OPCODE op = opcode(instr);
-        switch(op)
-        {
-            case MOVE: tryMove(pathFind(instrX(instr), instrY(instr))); break;
-            case SCOUT: tryMove(randomDirection()); break;
-            default: break;
-        }
-        //tryMove(pathFind(instrX(instr), instrY(instr)));
+        executeInstr(instr);
+        return;
     }
 
     static void runSlanderer() throws GameActionException {
          if(ecID == 0)
-            for (RobotInfo ri : rc.senseNearbyRobots(-1, rc.getTeam()))
-                if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
-                    ecID = ri.ID;
-       if (tryMove(randomDirection()))
-            System.out.println("I moved!");
+             ecID = getECID();
+         System.out.println("ECID: " + ecID);
+         if(ecID != 0 && getECFlag() != 0)
+             instructionQueue.addLast(getECFlag());
+         if (!rc.isReady())
+            return;
+        
+         //execute this when no instructions remaining from EC
+         if(instructionQueue.isEmpty())
+         {
+             tryMove(randomDirection());
+             return;
+         }
+
+         //otherwise, execute first instruction in queue
+         int instr = instructionQueue.removeFirst();        
+         System.out.println("received instruction: " + instr);
+         executeInstr(instr);
+         return;         
     }
 
-    static void runMuckraker() throws GameActionException {
-         if(ecID == 0)
-            for (RobotInfo ri : rc.senseNearbyRobots(-1, rc.getTeam()))
-                if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
-                    ecID = ri.ID;
-       Team enemy = rc.getTeam().opponent();
+    static void exposeSlanderers() throws GameActionException 
+    {
+        Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(actionRadius, enemy)) {
             if (robot.type.canBeExposed()) {
@@ -204,8 +258,31 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        if (tryMove(randomDirection()))
-            System.out.println("I moved!");
+    }
+    static void runMuckraker() throws GameActionException {
+        if(ecID == 0)
+             ecID = getECID();
+         System.out.println("ECID: " + ecID);
+         if(ecID != 0 && getECFlag() != 0)
+             instructionQueue.addLast(getECFlag());
+         if (!rc.isReady())
+            return;
+         
+         //always run this
+         exposeSlanderers();
+         
+         //execute this when no instructions remaining from EC
+         if(instructionQueue.isEmpty())
+         {
+             tryMove(randomDirection());
+             return;
+         }
+
+         //otherwise, execute first instruction in queue
+         int instr = instructionQueue.removeFirst();        
+         System.out.println("received instruction: " + instr);
+         executeInstr(instr);
+         return;
     }
 
     /**
@@ -223,6 +300,7 @@ public strictfp class RobotPlayer {
      * @return a random RobotType
      */
     static RobotType randomSpawnableRobotType() {
+    //fix later when we have info	
         double p = Math.random();
         if(p < 0.15)
             return RobotType.MUCKRAKER;
