@@ -1,0 +1,12 @@
+access.txt
+build/
+build.gradle
+client/
+gradle/
+gradle.properties
+gradlew
+gradlew.bat
+LICENSE
+matches/
+test/
+version.txt
