@@ -3,9 +3,10 @@ import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.Random;
 import java.lang.Math;
+import java.util.*;
 
 public strictfp class RobotPlayer {
-    static final RobotController rc;
+    static RobotController rc;
     static final Team ally = rc.getTeam();
     static final Team enemy = rc.getTeam().opponent();
     
@@ -543,9 +544,9 @@ public strictfp class RobotPlayer {
         // senses nearby allies and tries to maintain a fixed distance from them
         // Using the distance 3 for now, may change eventually
         List<RobotInfo> nearbyAllies = new ArrayList<>();
-        RobotInfo[] nearbyRobots = senseNearbyRobots();
+        RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
         for (RobotInfo robot : nearbyRobots) {
-            if (robot.Team == ally) {
+            if (robot.team == ally) {
                 nearbyAllies.add(robot);
             }
         }
@@ -555,31 +556,32 @@ public strictfp class RobotPlayer {
             // dont move
         }
     }
-
+    
+    // finds distance b/t two locs
+    static double absoluteDist(MapLocation loc1, MapLocation loc2) {
+        return Math.sqrt(Math.pow(loc1.x - loc2.x, 2) + Math.pow(loc1.y - loc2.y, 2));
+    }
+    
+    // computes penalty for a certain loc given nearbyAllies and dist
+    static double computePenalty(MapLocation loc, List<RobotInfo> nearbyAllies, double dist) {
+        double penalty = 0;
+        for (RobotInfo robot : nearbyAllies) {
+            penalty += Math.pow((absoluteDist(loc, robot.getLocation()) - dist), 2);
+        }
+        return penalty;
+    }
+    
     /**
     * Helper function to compute a direction for a robot to move to maintain a certain distance from a list of robots
     * The best direction is computed by weighting penalties between directions with the sum of the squares of their possible distances from all the robots
     **/
-    static Direction maintainDistance(List<RobotInfo> nearbyAllies, int dist) {
-        
-        // finds distance b/t two locs
-        static double absoluteDist(MapLocation loc1, MapLocation loc2) {
-            return Math.sqrt((loc1.x - loc2.x)**2 + (loc1.y - loc2.y)**2);
-        }
-        
-        // computes penalty for a certain loc given nearbyAllies and dist
-        static double computePenalty(Maplocation loc) {
-            double penalty = 0;
-            for (RobotInfo robot : nearbyAllies) {
-                penalty += (absoluteDist(loc, robot.getLocation()) - dist)**2;
-            }
-        }
+    static Direction maintainDistance(List<RobotInfo> nearbyAllies, double dist) {
         
         // finds the direction which gives minimum penalty
         double minPenalty = 999999999;
-        Direction heading = Direcion.CENTER;
+        Direction heading = Direction.CENTER;
         for (Direction d : Direction.values()) {
-            double penalty = computePenalty(rc.getLocation().add(d));
+            double penalty = computePenalty(rc.getLocation().add(d), nearbyAllies, dist);
             if (penalty < minPenalty) {
                 minPenalty = penalty;
                 heading = d;
