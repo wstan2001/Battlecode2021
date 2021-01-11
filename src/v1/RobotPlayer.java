@@ -236,7 +236,7 @@ public strictfp class RobotPlayer {
         //System.out.println("Influence: " + rc.getInfluence());
         
 
-        if (rc.getRoundNum() % 5 == 0 && rc.getRoundNum() < 100 && scoutIDs.size() < 10) {
+        if (rc.getRoundNum() % 2 == 0 && rc.getRoundNum() < 100 && scoutIDs.size() < 10) {
             int randDirection = rng.nextInt(8);
             if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
                 rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
@@ -250,7 +250,7 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        else if (rc.getRoundNum() % 5 == 0 && rc.getRoundNum() >= 100 && xBound0 != -1 && yBound0 != -1) {
+        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100) {
             //try sending a bot to a target location (16, 16)
             if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, 16, 16, 0))) //op, xcoord, ycoord, random data
                 rc.setFlag(encodeInstruction(OPCODE.MOVE, 16, 16, 0));
@@ -261,12 +261,14 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        else if (rc.getRoundNum() % 5 > 1) {
-            //broadcast map coordinates if possible
-            //don't interfere with bot creation commands
-            if (xBound0 != -1 && yBound0 != -1) {
-                if(rc.canSetFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)))) //send bot left corner coords
-                    rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)));
+        else {
+            //  build random robot
+            toBuild = randomSpawnableRobotType();
+            influence = toBuild == RobotType.MUCKRAKER ? 1 : Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+            for (Direction dir : directions) {
+                if (rc.canBuildRobot(toBuild, dir, influence)) {
+                    rc.buildRobot(toBuild, dir, influence);
+                }
             }
         }
 
@@ -360,10 +362,15 @@ public strictfp class RobotPlayer {
             scoutTarget();
         }
         else {
-            int flag = getECFlag();
-            if (flag != 0) {
-                executeInstr(flag);
+            actionRadius = rc.getType().actionRadiusSquared;
+            RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
+            if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
+                System.out.println("empowering...");
+                rc.empower(actionRadius);
+                System.out.println("empowered");
+                return;
             }
+            moveDir(randomDirection());
         }
         
     }
@@ -593,6 +600,7 @@ public strictfp class RobotPlayer {
     }
     
     static void runMuckraker() throws GameActionException {
+        Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(actionRadius, enemy)) {
             if (robot.type.canBeExposed()) {
@@ -604,7 +612,8 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        
+        moveDir(randomDirection());
+
     }
 
     /**
