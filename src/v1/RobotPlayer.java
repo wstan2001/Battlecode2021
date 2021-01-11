@@ -340,6 +340,10 @@ public strictfp class RobotPlayer {
                     +BID_INFLUENCE_INCOME_LB);
 		if(rc.canBid(bidAmount))
 		    rc.bid(bidAmount);
+	    
+	System.out.println("Turn: " + rc.getRoundNum());
+        System.out.println("Current bid: " + bidAmount);
+        System.out.println("Total Votes: " + rc.getTeamVotes());
 
         /*if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
