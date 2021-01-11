@@ -1,4 +1,4 @@
-package boundfinder;
+package v1;
 import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.Random;
