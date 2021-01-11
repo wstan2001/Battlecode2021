@@ -1,6 +1,9 @@
 package v1;
 import battlecode.common.*;
+
+import java.awt.*;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.lang.Math;
 import java.util.*;
@@ -732,7 +735,14 @@ public strictfp class RobotPlayer {
      * @return a random RobotType
      */
     static RobotType randomSpawnableRobotType() {
-        return spawnableRobot[(int) (Math.random() * spawnableRobot.length)];
+        double prob = Math.random();
+        if(prob < 0.2){
+            return RobotType.SLANDERER;
+        }else if(prob < 0.7){
+            return RobotType.MUCKRAKER;
+        }else{
+            return RobotType.POLITICIAN;
+        }
     }
 
     /**
