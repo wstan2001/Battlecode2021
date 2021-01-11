@@ -1,4 +1,4 @@
-package v1;
+package ver1;
 import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.Random;
@@ -90,7 +90,11 @@ public strictfp class RobotPlayer {
     static boolean foundXBound = false;
     static boolean foundYBound = false;
     static int generalDir = -1;       //the general direction robot should move in, int from 0 to 7
+    static int stuckCounter = 0;        //if this begins to build up, switch directions
     static MapLocation targetLoc = new MapLocation(-1,-1);
+
+    //Muckraker state vars
+    static int curTarget = -1;
 
     static int opcodeToInt(OPCODE op) //need to be changed when new opcode added
     {
@@ -228,7 +232,7 @@ public strictfp class RobotPlayer {
     }
 
     static void runEnlightenmentCenter() throws GameActionException {
-        RobotType toBuild = RobotType.POLITICIAN;
+        RobotType toBuild;
         Direction buildDir;
         int influence = 1;
 
@@ -236,12 +240,13 @@ public strictfp class RobotPlayer {
         //System.out.println("Influence: " + rc.getInfluence());
         
 
-        if (rc.getRoundNum() % 2 == 0 && rc.getRoundNum() < 100 && scoutIDs.size() < 10) {
+        if (rc.getRoundNum() % 4 == 2 && rc.getRoundNum() < 100 && scoutIDs.size() < 15) {
+            toBuild = RobotType.POLITICIAN;
             int randDirection = rng.nextInt(8);
             if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
                 rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
             for (int i : dirHelper) {
-                buildDir = directions[Math.abs(randDirection + i) % 7];
+                buildDir = directions[Math.abs(randDirection + i) % 8];
                 if (rc.canBuildRobot(toBuild, buildDir, influence)) {
                     rc.buildRobot(toBuild, buildDir, influence);
                     RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
@@ -250,25 +255,59 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100) {
-            //try sending a bot to a target location (16, 16)
-            if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, 16, 16, 0))) //op, xcoord, ycoord, random data
-                rc.setFlag(encodeInstruction(OPCODE.MOVE, 16, 16, 0));
-            for (Direction d : directions) {
-                if (rc.canBuildRobot(toBuild, d, influence)) {
-                    rc.buildRobot(toBuild, d, influence);
-                    break;
-                }
-            }
-        }
-        else {
-            //  build random robot
-            toBuild = randomSpawnableRobotType();
-            influence = toBuild == RobotType.MUCKRAKER ? 1 : Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100) {
+            toBuild = RobotType.SLANDERER;
+            influence = 10;
             for (Direction dir : directions) {
                 if (rc.canBuildRobot(toBuild, dir, influence)) {
                     rc.buildRobot(toBuild, dir, influence);
                 }
+            }
+        }
+        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() >= 100) {
+            //  build random robot
+            toBuild = randomSpawnableRobotType();
+
+            if (toBuild == RobotType.POLITICIAN) {
+                influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+                int randDirection = rng.nextInt(8);
+                if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
+                    rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+            }
+            else if (toBuild == RobotType.SLANDERER) {
+                influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+            }
+            else if (toBuild == RobotType.MUCKRAKER) {
+                influence = 1;
+                int temp = rng.nextInt(2);
+
+                if (temp == 0 && xBound0 != -1 && yBound0 != -1 && enemyECLoc.size() > 0) {
+                    //go to enemyEC
+                    temp = rng.nextInt(enemyECLoc.size());
+                    MapLocation loc = enemyECLoc.get(temp);
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord, direction to scout in
+                        rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
+                }
+                else {
+                    //move in random direction
+                    int randDirection = rng.nextInt(8);
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
+                        rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                }
+            }
+
+            for (Direction dir : directions) {
+                if (rc.canBuildRobot(toBuild, dir, influence)) {
+                    rc.buildRobot(toBuild, dir, influence);
+                }
+            }
+        }
+        else {
+            //broadcast map boundaries if possible
+            //don't interfere with bot creation commands
+            if (rc.getRoundNum() >= 100 && rc.getRoundNum() % 4 > 1 && xBound0 != -1 && yBound0 != -1) {
+                if(rc.canSetFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)))) //send bot left corner coords
+                    rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)));
             }
         }
 
@@ -350,6 +389,10 @@ public strictfp class RobotPlayer {
 
         if(ecID == 0) {
             ecID = getECID();
+            int flag = getECFlag();
+            if (flag != 0) {
+                executeInstr(flag);
+            }
         }
         
 
@@ -362,17 +405,16 @@ public strictfp class RobotPlayer {
             scoutTarget();
         }
         else {
-            actionRadius = rc.getType().actionRadiusSquared;
+            generalDir = rng.nextInt(8);        //a slanderer turning into poli, just pick rando dir to go in
+        }
+
+        if (rc.getInfluence() > 10) {
             RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
             if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
-                System.out.println("empowering...");
                 rc.empower(actionRadius);
-                System.out.println("empowered");
                 return;
             }
-            moveDir(randomDirection());
         }
-        
     }
 
     static void scoutBounds() throws GameActionException {
@@ -388,7 +430,6 @@ public strictfp class RobotPlayer {
         }
 
         int newFlag = 0;
-        boolean dirChanged = false;                 //only want direction to change at most once per turn, else some bots get stuck
         int ybound_mod64 = 0;      //y coord
         int topbotY = 0;           //bit to signify if top or bot boundary found
         int sendY = 0;             //bit to signify if we send y or not
@@ -414,15 +455,6 @@ public strictfp class RobotPlayer {
                 topbotY = 1;
                 foundYBound = true;
             }
-            //make bots going north change direction
-            if (!dirChanged && (generalDir == 0 || generalDir == 1)) {
-                generalDir = 2;
-                dirChanged = true;
-            }
-            else if (!dirChanged && generalDir == 7) {
-                generalDir = 6;
-                dirChanged = true;
-            }
         }
 
         //sense bot y boundary
@@ -442,15 +474,6 @@ public strictfp class RobotPlayer {
                 topbotY = 0;
                 foundYBound = true;
             }
-            //make bot going south change direction
-            if (!dirChanged && (generalDir == 4 || generalDir == 5)) {
-                generalDir = 6;
-                dirChanged = true;
-            }
-            else if (!dirChanged && generalDir == 3) {
-                generalDir = 2;
-                dirChanged = true;
-            }
         }
 
         //sense right x boundary
@@ -469,15 +492,6 @@ public strictfp class RobotPlayer {
                 leftrightX = 1;
                 foundXBound = true;
             }
-            //make bot going east change direction
-            if (!dirChanged && (generalDir == 2 || generalDir == 3)) {
-                generalDir = 4;
-                dirChanged = true;
-            }
-            else if (!dirChanged && generalDir == 1) {
-                generalDir = 0;
-                dirChanged = true;
-            }
         }
 
         //sense left x boundary
@@ -495,15 +509,6 @@ public strictfp class RobotPlayer {
                 sendX = 1;
                 leftrightX = 0;
                 foundXBound = true;
-            }
-            //make bot going west change direction
-            if (!dirChanged && (generalDir == 6 || generalDir == 7)) {
-                generalDir = 0;
-                dirChanged = true;
-            }
-            else if (!dirChanged && generalDir == 5) {
-                generalDir = 4;
-                dirChanged = true;
             }
         }
 
@@ -601,8 +606,18 @@ public strictfp class RobotPlayer {
     
     static void runMuckraker() throws GameActionException {
         Team enemy = rc.getTeam().opponent();
-        int actionRadius = rc.getType().actionRadiusSquared;
-        for (RobotInfo robot : rc.senseNearbyRobots(actionRadius, enemy)) {
+        int sensorRadius = rc.getType().sensorRadiusSquared;
+        MapLocation curLoc = rc.getLocation();
+
+        if(ecID == 0) {
+            ecID = getECID();
+            int flag = getECFlag();
+            if (flag != 0) {
+                executeInstr(flag);
+            }
+        }
+
+        for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
             if (robot.type.canBeExposed()) {
                 // It's a slanderer... go get them!
                 if (rc.canExpose(robot.location)) {
@@ -610,10 +625,25 @@ public strictfp class RobotPlayer {
                     rc.expose(robot.location);
                     return;
                 }
+                else {
+                    //decide whether to make it a new target
+                    if (!rc.canSenseRobot(curTarget) || 
+                        curLoc.distanceSquaredTo(robot.getLocation()) < curLoc.distanceSquaredTo(rc.senseRobot(curTarget).getLocation())) {
+                        curTarget = robot.getID();
+                    }
+                }
             }
         }
-        moveDir(randomDirection());
 
+        //try to chase current target, if exists
+        if (!chase(curTarget)) {
+            curTarget = -1;
+            //try to find a current target or move to location
+            if (generalDir != -1) 
+                moveDir(directions[generalDir]);
+            else if (targetLoc.x != -1 && targetLoc.y != -1)
+                scoutTarget();
+        }
     }
 
     /**
@@ -663,6 +693,10 @@ public strictfp class RobotPlayer {
      * @throws GameActionException
      */
     static void moveDir(Direction dir) throws GameActionException {
+        //this statement is important, DON'T DELETE! Else robot might think it's stuck when instead it is on cooldown
+        if (!rc.isReady())
+            return;
+
         double baseCooldown = 0.0;
         switch (rc.getType()) {
             case POLITICIAN:
@@ -685,10 +719,37 @@ public strictfp class RobotPlayer {
         Direction heading = Direction.CENTER;
         MapLocation curloc = rc.getLocation();
         
-        double minPenalty = 999;
+        double minPenalty = 99999;
         int[] temp = {0, 1, -1};        //move roughly according to general direction
+
+        //don't get too close to boundaries
+        if (!rc.onTheMap(curloc.translate(0, 3))) {
+            while (generalDir == 0 || generalDir == 1 || generalDir == 7) {
+                generalDir += 1;
+                generalDir %= 8;
+            }
+        }
+        if (!rc.onTheMap(curloc.translate(3, 0))) {
+            while (generalDir == 1 || generalDir == 2 || generalDir == 3) {
+                generalDir += 1;
+                generalDir %= 8;
+            }
+        }
+        if (!rc.onTheMap(curloc.translate(0, -3))) {
+            while (generalDir == 3 || generalDir == 4 || generalDir == 5) {
+                generalDir += 1;
+                generalDir %= 8;
+            }
+        }
+        if (!rc.onTheMap(curloc.translate(-3, 0))) {
+            while (generalDir == 5 || generalDir == 6 || generalDir == 7) {
+                generalDir += 1;
+                generalDir %= 8;
+            }
+        }
+
         for (int i : temp) {
-            Direction h = directions[Math.abs(dirIdx + i) % 7];
+            Direction h = directions[Math.abs(dirIdx + i) % 8];
             if (rc.canSenseLocation(curloc.add(h))) {
                 double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
                 if (rc.canMove(h) && adjPenalty < minPenalty - 1) {
@@ -697,9 +758,38 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        if (heading != Direction.CENTER && rc.canMove(heading)) {
+        if (heading != Direction.CENTER) {
             rc.move(heading);
+            stuckCounter = 0;
         }
+        else {
+            stuckCounter += 1;
+            if (stuckCounter > 5) {
+                //if we've been stuck for a long time, try changing direction
+                //avoids robot traffic
+                if (generalDir != -1) {
+                    generalDir += 1;
+                    generalDir %= 8;
+                    //System.out.println("Switching direction to " + directions[generalDir]);
+                }
+                stuckCounter = 0;
+            }
+        }
+    }
+
+    /**
+     * Makes robot pursue enemy robot with certain ID
+     * 
+     * @return true if the chase is ongoing
+     *         false if the enemy is destroyed or escapes
+     */
+    static boolean chase(int enemyID) throws GameActionException {
+        if (!rc.canSenseRobot(enemyID)) 
+            return false;
+        
+        RobotInfo rinfo = rc.senseRobot(enemyID);
+        moveDir(rc.getLocation().directionTo(rinfo.getLocation()));          //take a step towards enemy
+        return true;
     }
 }
 
