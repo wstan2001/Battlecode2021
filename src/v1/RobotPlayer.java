@@ -5,8 +5,10 @@ import java.util.Random;
 import java.lang.Math;
 
 public strictfp class RobotPlayer {
-    static RobotController rc;
-
+    static final RobotController rc;
+    static final Team ally = rc.getTeam();
+    static final Team enemy = rc.getTeam().opponent();
+    
     static final RobotType[] spawnableRobot = {
         RobotType.POLITICIAN,
         RobotType.SLANDERER,
@@ -157,7 +159,7 @@ public strictfp class RobotPlayer {
     }
     static int getECID() throws GameActionException 
     {
-        for (RobotInfo ri : rc.senseNearbyRobots(-1, rc.getTeam()))
+        for (RobotInfo ri : rc.senseNearbyRobots(-1, ally))
             if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
                 return ri.ID;
         return 0; //could not find EC
@@ -336,8 +338,6 @@ public strictfp class RobotPlayer {
     }
 
     static void runPolitician() throws GameActionException {
-        Team ally = rc.getTeam();
-        Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         final int senseRadius = 25;
         final double baseCooldown = 1.0;
@@ -503,7 +503,7 @@ public strictfp class RobotPlayer {
                 rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xbound_mod64, ybound_mod64, boundData));
         }
         else {
-            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(25, rc.getTeam().opponent());             //look for enemy EC
+            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(25, enemy);             //look for enemy EC
             for (RobotInfo rinfo : nearbyRobots) {
                 if (rinfo.type == RobotType.ENLIGHTENMENT_CENTER) {
                     if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
@@ -520,7 +520,6 @@ public strictfp class RobotPlayer {
     }
 
     static void scoutTarget() throws GameActionException {
-        Team ally = rc.getTeam();
 
         if (xBound0 == -1 || yBound0 == -1) {
             //we need to wait for map coordinate offsets before moving
@@ -536,11 +535,10 @@ public strictfp class RobotPlayer {
     }
 
     static void runSlanderer() throws GameActionException {
-        
+            
     }
 
     static void runMuckraker() throws GameActionException {
-        Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(actionRadius, enemy)) {
             if (robot.type.canBeExposed()) {
