@@ -249,9 +249,6 @@ public strictfp class RobotPlayer {
             }
         }
 
-        
-        
-
         if (rc.getRoundNum() % 4 == 2 && rc.getRoundNum() < 100 && scoutIDs.size() < 15) {
             toBuild = RobotType.POLITICIAN;
             int randDirection = rng.nextInt(8);
@@ -331,8 +328,16 @@ public strictfp class RobotPlayer {
             executeInstr(rc.getFlag(id));           //decode scout info
         }
 
+
+        double BID_INFLUENCE_RANDOM_UB = 0.02;
+        double BID_INFLUENCE_INCOME_LB = 0.1;
+        double BID_INFLUENCE_INCOME_UB = 0.5 + rc.getRoundNum()/9000.f;
 		int influenceLeft = rc.getInfluence();
-		int bidAmount = (int) (influenceLeft * Math.random() * 0.2);
+        int passiveInfluenceIncome = (int) (Math.ceil(Math.sqrt(rc.getRoundNum())*0.2)+0.5);
+		int bidAmount = (int) (influenceLeft * Math.random() * BID_INFLUENCE_RANDOM_UB
+                + passiveInfluenceIncome * Math.random() *
+                    (BID_INFLUENCE_INCOME_UB-BID_INFLUENCE_INCOME_LB)
+                    +BID_INFLUENCE_INCOME_LB);
 		if(rc.canBid(bidAmount))
 		    rc.bid(bidAmount);
 
