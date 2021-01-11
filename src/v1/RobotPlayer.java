@@ -1,4 +1,4 @@
-package ver1;
+package v1;
 import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.Random;
@@ -233,11 +233,23 @@ public strictfp class RobotPlayer {
 
     static void runEnlightenmentCenter() throws GameActionException {
         RobotType toBuild;
+        boolean slanderer = true;
         Direction buildDir;
         int influence = 1;
 
         //System.out.println("Conviction: " + rc.getConviction());
         //System.out.println("Influence: " + rc.getInfluence());
+        
+        
+        int sensorRadius = rc.getType().sensorRadiusSquared;
+        for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
+            if (robot.type == RobotType.MUCKRAKER) {
+                //if there are muckrakers nearby, don't build slanderers!
+                slanderer = false; 
+            }
+        }
+
+        
         
 
         if (rc.getRoundNum() % 4 == 2 && rc.getRoundNum() < 100 && scoutIDs.size() < 15) {
@@ -255,9 +267,10 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100) {
+        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100 && slanderer) {
             toBuild = RobotType.SLANDERER;
-            influence = 10;
+            influence = 21;
+            
             for (Direction dir : directions) {
                 if (rc.canBuildRobot(toBuild, dir, influence)) {
                     rc.buildRobot(toBuild, dir, influence);
@@ -267,7 +280,9 @@ public strictfp class RobotPlayer {
         else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() >= 100) {
             //  build random robot
             toBuild = randomSpawnableRobotType();
-
+            if(!slanderer && toBuild == RobotType.SLANDERER)
+                toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+                
             if (toBuild == RobotType.POLITICIAN) {
                 influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
                 int randDirection = rng.nextInt(8);
@@ -275,7 +290,7 @@ public strictfp class RobotPlayer {
                     rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
             }
             else if (toBuild == RobotType.SLANDERER) {
-                influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+                influence = Math.max(21, (int) Math.pow(rc.getInfluence(), 2.0/3));
             }
             else if (toBuild == RobotType.MUCKRAKER) {
                 influence = 1;
@@ -316,6 +331,10 @@ public strictfp class RobotPlayer {
             executeInstr(rc.getFlag(id));           //decode scout info
         }
 
+		int influenceLeft = rc.getInfluence();
+		int bidAmount = (int) (influenceLeft * Math.random() * 0.2);
+		if(rc.canBid(bidAmount))
+		    rc.bid(bidAmount);
 
         /*if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
@@ -395,6 +414,46 @@ public strictfp class RobotPlayer {
             }
         }
         
+        if(rc.getID() % 4 == 0) //defensive politician
+        {
+            RobotInfo[] friendly = rc.senseNearbyRobots(actionRadius, ally);
+            RobotInfo[] enemylocs = rc.senseNearbyRobots(actionRadius, enemy);
+            ArrayList<MapLocation> slandererCoords = new ArrayList<>();
+            for (RobotInfo ri : friendly)
+            {
+                if(ri.type == RobotType.SLANDERER)
+                    slandererCoords.add(ri.location);
+            }
+            ArrayList<MapLocation> enemyMuckCoords = new ArrayList<>();
+            for (RobotInfo ri : enemylocs)
+            {
+                if(ri.type == RobotType.MUCKRAKER)
+                    slandererCoords.add(ri.location);
+            }
+            int minDist = 9999999;
+            for (MapLocation slanderer : slandererCoords)
+                for (MapLocation muckraker : enemyMuckCoords)
+                    minDist = Math.min(minDist, slanderer.distanceSquaredTo(muckraker));
+            if (minDist < 20 && rc.canEmpower(actionRadius))
+            {
+                rc.empower(actionRadius);
+                return;
+            }
+            
+        	List<RobotInfo> nearbyAllies = new ArrayList<>();
+        	RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
+        	for (RobotInfo robot : nearbyRobots) {
+            	if (robot.team == ally) {
+                	nearbyAllies.add(robot);
+            	}
+        	}
+        	if (nearbyAllies.size() > 0) {
+            	moveDir(maintainDistance(nearbyAllies, 5));
+        	} else {
+            	// dont move
+        	}
+        	return;
+        }
 
         if (generalDir != -1) {
             //this scout is a boundary finder
@@ -410,11 +469,14 @@ public strictfp class RobotPlayer {
 
         if (rc.getInfluence() > 10) {
             RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
+            
             if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
                 rc.empower(actionRadius);
                 return;
             }
         }
+
+        
     }
 
     static void scoutBounds() throws GameActionException {
