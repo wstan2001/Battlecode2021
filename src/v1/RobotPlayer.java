@@ -81,7 +81,8 @@ public strictfp class RobotPlayer {
     static int xSize = -1;        //xBound1 - xBound0, will be btwn 32 and 64 inc
     static int ySize = -1;        //yBound1 - yBound0, will be btwn 32 and 64 inc
 
-    static ArrayList<MapLocation> enemyECLoc = new ArrayList<MapLocation>();            //store normalized coordinates of enemy EC
+    static List<MapLocation> enemyECLoc = new ArrayList<MapLocation>();             // store normalized coordinates of enemy EC
+    static List<MapLocation> allyECLoc = new ArrayList<MapLocation>();              // store normalized coordinates of ally EC
 
 
     //Politician state variables
@@ -535,9 +536,58 @@ public strictfp class RobotPlayer {
     }
 
     static void runSlanderer() throws GameActionException {
-            
+        if(ecID == 0) {
+            ecID = getECID();
+        }
+        
+        // senses nearby allies and tries to maintain a fixed distance from them
+        // Using the distance 3 for now, may change eventually
+        List<RobotInfo> nearbyAllies = new ArrayList<>();
+        RobotInfo[] nearbyRobots = senseNearbyRobots();
+        for (RobotInfo robot : nearbyRobots) {
+            if (robot.Team == ally) {
+                nearbyAllies.add(robot);
+            }
+        }
+        if (nearbyAllies.size() > 0) {
+            moveDir(maintainDistance(nearbyAllies, 3));
+        } else {
+            // dont move
+        }
     }
 
+    /**
+    * Helper function to compute a direction for a robot to move to maintain a certain distance from a list of robots
+    * The best direction is computed by weighting penalties between directions with the sum of the squares of their possible distances from all the robots
+    **/
+    static Direction maintainDistance(List<RobotInfo> nearbyAllies, int dist) {
+        
+        // finds distance b/t two locs
+        static double absoluteDist(MapLocation loc1, MapLocation loc2) {
+            return Math.sqrt((loc1.x - loc2.x)**2 + (loc1.y - loc2.y)**2);
+        }
+        
+        // computes penalty for a certain loc given nearbyAllies and dist
+        static double computePenalty(Maplocation loc) {
+            double penalty = 0;
+            for (RobotInfo robot : nearbyAllies) {
+                penalty += (absoluteDist(loc, robot.getLocation()) - dist)**2;
+            }
+        }
+        
+        // finds the direction which gives minimum penalty
+        double minPenalty = 999999999;
+        Direction heading = Direcion.CENTER;
+        for (Direction d : Direction.values()) {
+            double penalty = computePenalty(rc.getLocation().add(d));
+            if (penalty < minPenalty) {
+                minPenalty = penalty;
+                heading = d;
+            }
+        }
+        return heading;
+    }
+    
     static void runMuckraker() throws GameActionException {
         int actionRadius = rc.getType().actionRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(actionRadius, enemy)) {
