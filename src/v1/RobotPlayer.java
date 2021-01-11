@@ -7,8 +7,8 @@ import java.util.*;
 
 public strictfp class RobotPlayer {
     static RobotController rc;
-    static final Team ally = rc.getTeam();
-    static final Team enemy = rc.getTeam().opponent();
+    static Team ally;
+    static Team enemy;
     
     static final RobotType[] spawnableRobot = {
         RobotType.POLITICIAN,
@@ -199,6 +199,8 @@ public strictfp class RobotPlayer {
         // This is the RobotController object. You use it to perform actions from this robot,
         // and to get information on its current status.
         RobotPlayer.rc = rc;
+        ally = rc.getTeam();
+        enemy = rc.getTeam().opponent();    
 
         turnCount = 0;
 
