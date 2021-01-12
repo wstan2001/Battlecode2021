@@ -98,6 +98,7 @@ public strictfp class RobotPlayer {
     static int stuckCounter = 0;        //if this begins to build up, switch directions
     static MapLocation targetLoc = new MapLocation(-1,-1);
     static String type = "None";
+    static boolean wandering = false;
 
     //Muckraker state vars
     static int curTarget = -1;
@@ -298,6 +299,8 @@ public strictfp class RobotPlayer {
                 int poliType = rng.nextInt(2);
                 if (poliType == 0) {
                     //build a troop
+                    /*if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9))) //op, xcoord, ycoord, of location to seek
+                        rc.setFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9));*/
                     int randDirection = rng.nextInt(8);
                     if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
                         rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
@@ -317,6 +320,8 @@ public strictfp class RobotPlayer {
 
                 if (temp == 0 && xBound0 != -1 && yBound0 != -1 && enemyECLoc.size() > 0) {
                     //go to enemyEC
+                    System.out.println("Making homing muckraker!");
+                    System.out.println(enemyECLoc.size());
                     temp = rng.nextInt(enemyECLoc.size());
                     MapLocation loc = enemyECLoc.get(temp);
                     if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
@@ -449,6 +454,10 @@ public strictfp class RobotPlayer {
             scoutBounds();
         }
         else if (type == "Troop") {
+            if (!wandering && rng.nextDouble() < 0.05) {
+                //any troop has a 5% chance of beginning to move in random directions
+                wandering = true;
+            } 
             if (rc.getInfluence() > 10) {
                 RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
                 RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
@@ -456,17 +465,24 @@ public strictfp class RobotPlayer {
                     System.out.println("Found neutral EC!");
                 }
                 if (attackable.length + neutralEC.length > 0 && rc.canEmpower(actionRadius)) {
-                    rc.empower(actionRadius);
-                    return;
+                    rc.empower(actionRadius);                
                 }
             }
-            moveDir(directions[generalDir]);
+            if (wandering == true) 
+                moveDir(directions[rng.nextInt(8)]);
+            else if (generalDir != -1) 
+                moveDir(directions[generalDir]);
+            else if (targetLoc.x != -1 && targetLoc.y != -1) 
+                moveToLoc(targetLoc);
+            else 
+                generalDir = rng.nextInt(8);
+            
         }
         else if (type == "Defender") {
             defendSland();
         }
         else {
-            //for som reason this politician doesn't have a type. Make it a troop
+            //for som reason this politician doesn't have a type, maybe bc it was ex-Slanderer. Make it a troop
             type = "Troop";
             generalDir = rng.nextInt(8);
         }        
