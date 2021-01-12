@@ -252,13 +252,13 @@ public strictfp class RobotPlayer {
             }
         }
 
-        if (rc.getRoundNum() % 4 == 2 && rc.getRoundNum() < 100 && scoutIDs.size() < 15) {
+        if (rc.getRoundNum() % 2 == 0 && rc.getRoundNum() % 8 != 0 && rc.getRoundNum() < 100 && scoutIDs.size() < 20) {
             toBuild = RobotType.POLITICIAN;
             int randDirection = rng.nextInt(8);
             if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
                 rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
             for (int i : dirHelper) {
-                buildDir = directions[Math.abs(randDirection + i) % 8];
+                buildDir = directions[(randDirection + i + 8) % 8];
                 if (rc.canBuildRobot(toBuild, buildDir, influence)) {
                     rc.buildRobot(toBuild, buildDir, influence);
                     RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
@@ -267,7 +267,7 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100 && slanderer) {
+        else if (rc.getRoundNum() % 8 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100 && slanderer) {
             toBuild = RobotType.SLANDERER;
             influence = 21;
             
@@ -298,6 +298,8 @@ public strictfp class RobotPlayer {
 
                 if (temp == 0 && xBound0 != -1 && yBound0 != -1 && enemyECLoc.size() > 0) {
                     //go to enemyEC
+                    System.out.println(enemyECLoc.size());
+                    System.out.println("making homing muckraker");
                     temp = rng.nextInt(enemyECLoc.size());
                     MapLocation loc = enemyECLoc.get(temp);
                     if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord, direction to scout in
@@ -337,25 +339,24 @@ public strictfp class RobotPlayer {
         double BID_INFLUENCE_INCOME_UB = 0.5 + rc.getRoundNum()/9000.f;
 		int influenceLeft = rc.getInfluence();
         int passiveInfluenceIncome = (int) (Math.ceil(Math.sqrt(rc.getRoundNum())*0.2)+0.5);
-		int bidAmount = (int) (influenceLeft * Math.random() * BID_INFLUENCE_RANDOM_UB
-                + passiveInfluenceIncome * Math.random() *
-                    (BID_INFLUENCE_INCOME_UB-BID_INFLUENCE_INCOME_LB)
-                    +BID_INFLUENCE_INCOME_LB);
-		if(rc.canBid(bidAmount))
+		int bidAmount = (int) (influenceLeft * Math.random() * BID_INFLUENCE_RANDOM_UB + passiveInfluenceIncome * Math.random() * (BID_INFLUENCE_INCOME_UB-BID_INFLUENCE_INCOME_LB)+BID_INFLUENCE_INCOME_LB);
+		//int bidAmount = (int) (influenceLeft * (rng.nextGaussian() / 50.0 + 0.05));
+        bidAmount = Math.min(Math.max(bidAmount,0), (int) (influenceLeft * 0.25));
+        if(rc.canBid(bidAmount))
 		    rc.bid(bidAmount);
 	    
-	System.out.println("Turn: " + rc.getRoundNum());
-        System.out.println("Current bid: " + bidAmount);
-        System.out.println("Total Votes: " + rc.getTeamVotes());
+	    //System.out.println("Turn: " + rc.getRoundNum());
+        //System.out.println("Current bid: " + bidAmount);
+        //System.out.println("Total Votes: " + rc.getTeamVotes());
 
-        /*if (xBound0 != -1) 
+        if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
         if (yBound0 != -1) 
             System.out.println("yBound0: " + yBound0);
         if (xBound1 != -1) 
             System.out.println("xBound1: " + xBound1);
         if (yBound1 != -1) 
-            System.out.println("yBound1: " + yBound1);*/
+            System.out.println("yBound1: " + yBound1);
         
     }
 
@@ -379,13 +380,13 @@ public strictfp class RobotPlayer {
 
         //deduce gridSize
         if (ySize == -1 && yBound0 != -1 && yBound1 != -1) {
-            int temp = Math.abs(yBound1 - yBound0 + 1) % 64;
+            int temp = (yBound1 - yBound0 + 1 + 64) % 64;
             if (temp == 0) 
                 temp = 64;
             ySize =temp;
         }
         if (xSize == -1 && xBound0 != -1 && xBound1 != -1) {
-            int temp = Math.abs(xBound1 - xBound0 + 1) % 64;
+            int temp = (xBound1 - xBound0 + 1 + 64) % 64;
             if (temp == 0) 
                 temp = 64;
             xSize = temp;
@@ -399,8 +400,8 @@ public strictfp class RobotPlayer {
             return;
 
         //normalize coordinates
-        y = Math.abs(y - yBound0) % 64;
-        x = Math.abs(x - xBound0) % 64;
+        y = (y - yBound0 + 64) % 64;
+        x = (x - xBound0 + 64) % 64;
         switch (intToCoordinfo(data)) {
             case ENEMYEC:
                 MapLocation enemyLoc = new MapLocation(x, y);
@@ -481,8 +482,8 @@ public strictfp class RobotPlayer {
 
         if (rc.getInfluence() > 10) {
             RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
-            
-            if (attackable.length != 0 && rc.canEmpower(actionRadius)) {
+            RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
+            if (attackable.length + neutralEC.length > 0 && rc.canEmpower(actionRadius)) {
                 rc.empower(actionRadius);
                 return;
             }
@@ -830,7 +831,7 @@ public strictfp class RobotPlayer {
         }
 
         for (int i : temp) {
-            Direction h = directions[Math.abs(dirIdx + i) % 8];
+            Direction h = directions[(dirIdx + i + 8) % 8];
             if (rc.canSenseLocation(curloc.add(h))) {
                 double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
                 if (rc.canMove(h) && adjPenalty < minPenalty - 1) {
