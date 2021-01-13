@@ -71,15 +71,19 @@ public strictfp class RobotPlayer {
 
     public enum COORDINFO {
         ENEMYEC, //scout has discovered enemy EC
+        NEUTRALEC, //scout has discovered neutral EC
+        ALLYEC, //scout has discovered ally EC
         INVALID
     }
 
-    static int turnCount;
+    static int turnCount = 0;       //each EC needs to keep track of this since their creation might happen at anytime
+    static String phase = "Scouting";
     static int ecID = 0;
     static Random rng = new Random();
 
     //EC state variables
     static ArrayList<Integer> scoutIDs = new ArrayList<Integer>();        //keep track of scout IDs
+    static ArrayList<Integer> troopIDs = new ArrayList<Integer>();        //non scout robot IDs... may want to make this more specific later
     static int xBound0 = -1;       //mod 64 coordinate of left edge
     static int xBound1 = -1;        //mod 64 coordinate of right edge
     static int yBound0 = -1;        //mod 64 coordinate of lower edge
@@ -88,7 +92,10 @@ public strictfp class RobotPlayer {
     static int ySize = -1;        //yBound1 - yBound0, will be btwn 32 and 64 inc
 
     static List<MapLocation> enemyECLoc = new ArrayList<MapLocation>();             // store normalized coordinates of enemy EC
+    static List<MapLocation> neutralECLoc = new ArrayList<MapLocation>();            //store normalized coordinates of neutral EC
     static List<MapLocation> allyECLoc = new ArrayList<MapLocation>();              // store normalized coordinates of ally EC
+
+    static List<Integer> allyECIDs = new ArrayList<Integer>();           //store allied EC IDs for communication
 
 
     //Politician state variables
@@ -136,12 +143,16 @@ public strictfp class RobotPlayer {
     static int coordinfoToInt(COORDINFO cinfo) {
         switch (cinfo) {
             case ENEMYEC: return 0;
+            case NEUTRALEC: return 1;
+            case ALLYEC: return 2;
         }
         return -1;
     }
     static COORDINFO intToCoordinfo(int x) {
         switch (x) {
             case 0: return COORDINFO.ENEMYEC;
+            case 1: return COORDINFO.NEUTRALEC;
+            case 2: return COORDINFO.ALLYEC;
         }
         return COORDINFO.INVALID;
     }
@@ -192,6 +203,7 @@ public strictfp class RobotPlayer {
         {
             case MOVE: targetLoc = new MapLocation(instrX(instr), instrY(instr)); break;
             case SCOUT: generalDir = instrData(instr); type = "Scout"; break;
+            case SENDECID: addAllyECID(instr); break;
             case SENDBOUNDARIES: processBoundary(instrX(instr), instrY(instr), instrData(instr)); break;
             case SENDCOORDINATES: processCoords(instrX(instr), instrY(instr), instrData(instr)); break;
             case TROOP: 
@@ -220,10 +232,8 @@ public strictfp class RobotPlayer {
         ally = rc.getTeam();
         enemy = rc.getTeam().opponent();    
 
-        turnCount = 0;
 
         while (true) {
-            turnCount += 1;
             // Try/catch blocks stop unhandled exceptions, which cause your robot to freeze
             try {
                 // Here, we've separated the controls into a different method for each RobotType.
@@ -247,7 +257,7 @@ public strictfp class RobotPlayer {
 
     static void runEnlightenmentCenter() throws GameActionException {
         RobotType toBuild;
-        boolean slanderer = true;
+        boolean canBuildSlanderer = true;
         Direction buildDir;
         int influence = 1;
 
@@ -259,101 +269,156 @@ public strictfp class RobotPlayer {
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
             if (robot.type == RobotType.MUCKRAKER) {
                 //if there are muckrakers nearby, don't build slanderers!
-                slanderer = false; 
+                canBuildSlanderer = false; 
+            }
+        }
+        for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, ally)) {
+            if (opcode(rc.getFlag(robot.getID())) == OPCODE.SENDECID) {
+                //get ID of ally EC
+                executeInstr(rc.getFlag(robot.getID()));
             }
         }
 
-        if (rc.getRoundNum() % 2 == 0 && rc.getRoundNum() % 8 != 0 && rc.getRoundNum() < 100 && scoutIDs.size() < 40) {
-            toBuild = RobotType.POLITICIAN;
-            int randDirection = rng.nextInt(8);
-            if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
-                rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
-            for (int i : dirHelper) {
-                buildDir = directions[(randDirection + i + 8) % 8];
-                if (rc.canBuildRobot(toBuild, buildDir, influence)) {
-                    rc.buildRobot(toBuild, buildDir, influence);
-                    RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
-                    scoutIDs.add(rinfo.getID());
-                    break;
+        if (phase == "Scouting") {
+            if (turnCount % 2 == 0 && turnCount % 8 != 0 && scoutIDs.size() < 40) {
+                toBuild = RobotType.POLITICIAN;
+                int randDirection = rng.nextInt(8);
+                if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to scout in
+                    rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                for (int i : dirHelper) {
+                    buildDir = directions[(randDirection + i + 8) % 8];
+                    if (rc.canBuildRobot(toBuild, buildDir, influence)) {
+                        rc.buildRobot(toBuild, buildDir, influence);
+                        RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
+                        scoutIDs.add(rinfo.getID());
+                        break;
+                    }
                 }
             }
-        }
-        else if (rc.getRoundNum() % 8 == 0 && rc.getRoundNum() < 100 && rc.getInfluence() >= 100 && slanderer) {
-            toBuild = RobotType.SLANDERER;
-            influence = 21;
-            
-            for (Direction dir : directions) {
-                if (rc.canBuildRobot(toBuild, dir, influence)) {
-                    rc.buildRobot(toBuild, dir, influence);
-                }
-            }
-        }
-        else if (rc.getRoundNum() % 4 == 0 && rc.getRoundNum() >= 100) {
-            //  build random robot
-            toBuild = randomSpawnableRobotType();
-            if(!slanderer && toBuild == RobotType.SLANDERER)
-                toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+            else if (turnCount % 8 == 0 && rc.getInfluence() >= 100 && canBuildSlanderer) {
+                toBuild = RobotType.SLANDERER;
+                influence = 21;
                 
-            if (toBuild == RobotType.POLITICIAN) {
-                influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
-                int poliType = rng.nextInt(2);
-                if (poliType == 0) {
-                    //build a troop
-                    /*if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9))) //op, xcoord, ycoord, of location to seek
-                        rc.setFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9));*/
-                    int randDirection = rng.nextInt(8);
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
-                        rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
-                }
-                else if (poliType == 1) {
-                    //build a defender
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0))) //op, xcoord, ycoord, direction to patrol
-                        rc.setFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0));
-                }
-            }
-            else if (toBuild == RobotType.SLANDERER) {
-                influence = Math.max(21, (int) Math.pow(rc.getInfluence(), 2.0/3));
-            }
-            else if (toBuild == RobotType.MUCKRAKER) {
-                influence = 1;
-                int temp = rng.nextInt(2);
-
-                if (temp == 0 && xBound0 != -1 && yBound0 != -1 && enemyECLoc.size() > 0) {
-                    //go to enemyEC
-                    System.out.println("Making homing muckraker!");
-                    System.out.println(enemyECLoc.size());
-                    temp = rng.nextInt(enemyECLoc.size());
-                    MapLocation loc = enemyECLoc.get(temp);
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
-                        rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
-                }
-                else {
-                    //move in random direction
-                    int randDirection = rng.nextInt(8);
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
-                        rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                for (Direction dir : directions) {
+                    if (rc.canBuildRobot(toBuild, dir, influence)) {
+                        rc.buildRobot(toBuild, dir, influence);
+                    }
                 }
             }
 
-            for (Direction dir : directions) {
-                if (rc.canBuildRobot(toBuild, dir, influence)) {
-                    rc.buildRobot(toBuild, dir, influence);
+            //try to bypass scouting phase if possible
+            if (xBound0 == -1 || yBound0 == -1) {
+                for (int ECID : allyECIDs) {
+                    if (rc.canGetFlag(ECID)) {
+                        int allyFlag = rc.getFlag(ECID);
+                        if (opcode(allyFlag) == OPCODE.SENDBOUNDARIES) {
+                            System.out.println("Reading boundaries from allied EC!");
+                            executeInstr(allyFlag);
+                            System.out.println(xBound0 + " " + yBound0);
+                        }
+                    }
+                }
+            }
+            /*if ((xBound0 != -1 && yBound0 != -1) || turnCount > 100)
+                phase = "Default";*/
+            if (turnCount > 100)
+                phase = "Default";          //it might be better to extend scouting phase a bit, since we want to find ECs as well as boundaries
+        }
+        else if (phase == "Default") {
+            if (turnCount % 4 == 0) {
+                //  build random robot
+                toBuild = randomSpawnableRobotType();
+                if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
+                    toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+                    
+                if (toBuild == RobotType.POLITICIAN) {
+                    influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
+                    int poliType = rng.nextInt(1);
+                    //change the above later. Right now we don't make defenders
+                    if (poliType == 0) {
+                        //build a troop
+                        /*if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9))) //op, xcoord, ycoord, of location to seek
+                            rc.setFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9));*/
+                        int randDirection = rng.nextInt(8);
+                        if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
+                            rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
+                    }
+                    else if (poliType == 1) {
+                        //build a defender
+                        if(rc.canSetFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0))) //op, xcoord, ycoord, direction to patrol
+                            rc.setFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0));
+                    }
+                }
+                else if (toBuild == RobotType.SLANDERER) {
+                    influence = Math.max(21, (int) Math.pow(rc.getInfluence(), 2.0/3));
+                }
+                else if (toBuild == RobotType.MUCKRAKER) {
+                    influence = 1;
+                    int temp = rng.nextInt(2);
+
+                    if (temp == 0 && xBound0 != -1 && yBound0 != -1 && enemyECLoc.size() > 0) {
+                        //go to enemyEC
+                        temp = rng.nextInt(enemyECLoc.size());
+                        MapLocation loc = enemyECLoc.get(temp);
+                        if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
+                            rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
+                    }
+                    else {
+                        //move in random direction
+                        int randDirection = rng.nextInt(8);
+                        if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
+                            rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                    }
+                }
+
+                for (Direction dir : directions) {
+                    if (rc.canBuildRobot(toBuild, dir, influence)) {
+                        rc.buildRobot(toBuild, dir, influence);
+                        if (opcode(rc.getFlag(rc.getID())) == OPCODE.TROOP && troopIDs.size() < 100) {      //we can make more than 100 troops but only keep track of this many
+                            RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(dir));
+                            troopIDs.add(rinfo.getID());
+                        }
+                        break;
+                    }
+                }
+            }
+            else {
+                //broadcast map boundaries if possible
+                //don't interfere with bot creation commands
+                if (turnCount % 4 > 1 && xBound0 != -1 && yBound0 != -1) {
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)))) //send bot left corner coords
+                        rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)));
                 }
             }
         }
-        else {
-            //broadcast map boundaries if possible
-            //don't interfere with bot creation commands
-            if (rc.getRoundNum() >= 100 && rc.getRoundNum() % 4 > 1 && xBound0 != -1 && yBound0 != -1) {
-                if(rc.canSetFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)))) //send bot left corner coords
-                    rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xBound0, yBound0, (1 << 3) + (1 << 1)));
-            }
-        }
+
 
         scoutIDs.removeIf(id -> !rc.canGetFlag(id));          //purge dead scouts
         for (Integer id : scoutIDs) {
-            executeInstr(rc.getFlag(id));           //decode scout info
+            if (rc.canGetFlag(id)) {
+                OPCODE opc = opcode(rc.getFlag(id));
+                if (opc == OPCODE.SENDECID || opc == OPCODE.SENDBOUNDARIES || opc == OPCODE.SENDCOORDINATES)
+                    executeInstr(rc.getFlag(id));           //decode scout info
+            }
         }
+
+        //if (rc.getID() == 13029)
+        //    System.out.println("b4: " + Clock.getBytecodesLeft());
+        troopIDs.removeIf(id -> !rc.canGetFlag(id));          //purge dead troops
+        //if (rc.getID() == 13029)
+        //    System.out.println("after: " + Clock.getBytecodesLeft());
+        for (Integer id : troopIDs) {
+            if (rc.canGetFlag(id)) {
+                OPCODE opc = opcode(rc.getFlag(id));
+                if (opc == OPCODE.SENDCOORDINATES || opc == OPCODE.SENDECID)
+                    executeInstr(rc.getFlag(id));           //decode troop info
+            }
+            else
+                System.out.println("Weird bug while reading troop flag " + id);
+        }
+
+        allyECIDs.removeIf(id -> !rc.canGetFlag(id));         //purge dead allied EC
+
 
 
         double BID_INFLUENCE_RANDOM_UB = 0.02;
@@ -371,6 +436,12 @@ public strictfp class RobotPlayer {
         //System.out.println("Current bid: " + bidAmount);
         //System.out.println("Total Votes: " + rc.getTeamVotes());
 
+        turnCount += 1;
+
+        System.out.println("Enemy EC: " + enemyECLoc.size());
+        System.out.println("Neutral EC: " + neutralECLoc.size());
+        System.out.println("Ally EC: " + allyECLoc.size());
+
         /*if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
         if (yBound0 != -1) 
@@ -380,6 +451,17 @@ public strictfp class RobotPlayer {
         if (yBound1 != -1) 
             System.out.println("yBound1: " + yBound1);*/
         
+    }
+
+    static void addAllyECID(int instr) throws GameActionException {
+        if (opcode(instr) != OPCODE.SENDECID) {
+            System.out.println("Cannot decode ally EC ID messge");
+            return;
+        }
+        int ECID = instr % (1 << 20);
+        if (allyECIDs.indexOf(ECID) == -1) {
+            allyECIDs.add(ECID);
+        }
     }
 
     static void processBoundary(int x, int y, int data) throws GameActionException {
@@ -429,19 +511,31 @@ public strictfp class RobotPlayer {
                 MapLocation enemyLoc = new MapLocation(x, y);
                 if (enemyECLoc.indexOf(enemyLoc) == -1) {               //don't add dupes
                     enemyECLoc.add(enemyLoc);
-                    System.out.println("Found enemy at " + x + " " + y);
                 }
+                neutralECLoc.removeIf(loc -> loc.equals(enemyLoc));         //update other info
+                allyECLoc.removeIf(loc -> loc.equals(enemyLoc));         //update other info
+                break;
+            case NEUTRALEC:
+                MapLocation neutralLoc = new MapLocation(x, y);
+                if (neutralECLoc.indexOf(neutralLoc) == -1) {               //don't add dupes
+                    neutralECLoc.add(neutralLoc);
+                }
+                enemyECLoc.removeIf(loc -> loc.equals(neutralLoc));         //update other info
+                allyECLoc.removeIf(loc -> loc.equals(neutralLoc));         //update other info
+                break;
+            case ALLYEC:
+                MapLocation allyLoc = new MapLocation(x, y);
+                if (allyECLoc.indexOf(allyLoc) == -1) {               //don't add dupes
+                    allyECLoc.add(allyLoc);
+                }
+                enemyECLoc.removeIf(loc -> loc.equals(allyLoc));         //update other info
+                neutralECLoc.removeIf(loc -> loc.equals(allyLoc));         //update other info
                 break;
         }
 
     }
 
     static void runPolitician() throws GameActionException {
-        int actionRadius = rc.getType().actionRadiusSquared;
-        Team enemy = rc.getTeam().opponent();
-        final int senseRadius = 25;
-        final double baseCooldown = 1.0;
-
         if(ecID == 0) {
             ecID = getECID();
             int flag = getECFlag();
@@ -454,31 +548,12 @@ public strictfp class RobotPlayer {
             scoutBounds();
         }
         else if (type == "Troop") {
-            if (!wandering && rng.nextDouble() < 0.05) {
-                //any troop has a 5% chance of beginning to move in random directions
-                wandering = true;
-            } 
-            if (rc.getInfluence() > 10) {
-                RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
-                RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
-                if (neutralEC.length > 0) {
-                    System.out.println("Found neutral EC!");
-                }
-                if (attackable.length + neutralEC.length > 0 && rc.canEmpower(actionRadius)) {
-                    rc.empower(actionRadius);                
-                }
-            }
-            if (wandering == true) 
-                moveDir(directions[rng.nextInt(8)]);
-            else if (generalDir != -1) 
-                moveDir(directions[generalDir]);
-            else if (targetLoc.x != -1 && targetLoc.y != -1) 
-                moveToLoc(targetLoc);
-            else 
-                generalDir = rng.nextInt(8);
-            
+            runTroop();
         }
         else if (type == "Defender") {
+            if (rc.getFlag(rc.getID()) == 0)            //display ID of its EC
+                rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));
+
             defendSland();
         }
         else {
@@ -488,6 +563,10 @@ public strictfp class RobotPlayer {
         }        
     }
 
+    /**
+     * Scouts for boundaries as well as EC locations
+     *
+     */
     static void scoutBounds() throws GameActionException {
         //System.out.println("General Direction: " + directions[generalDir]);
 
@@ -590,20 +669,45 @@ public strictfp class RobotPlayer {
                 rc.setFlag(encodeInstruction(OPCODE.SENDBOUNDARIES, xbound_mod64, ybound_mod64, boundData));
         }
         else {
-            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(25, enemy);             //look for enemy EC
-            for (RobotInfo rinfo : nearbyRobots) {
-                if (rinfo.type == RobotType.ENLIGHTENMENT_CENTER) {
-                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)))) {//op, xcoord, ycoord, data 
-                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)));
-                    }
-                }
-            }
+            scanForEC();
         }
 
         //figure out where to move next
         moveDir(directions[generalDir]);
+    }
+
+    static void runTroop() throws GameActionException {
+        int actionRadius = rc.getType().actionRadiusSquared;
+        Team enemy = rc.getTeam().opponent();
+        final int senseRadius = 25;
+        final double baseCooldown = 1.0;
+
+        if (!wandering && rng.nextDouble() < 0.05) {
+            //any troop has a 5% chance of beginning to move in random directions
+            wandering = true;
+        } 
+        if (rc.getInfluence() > 10) {
+            RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
+            RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
+            if (neutralEC.length > 0) {
+                System.out.println("Found neutral EC!");
+            }
+            if (attackable.length + neutralEC.length > 0 && rc.canEmpower(actionRadius)) {
+                rc.empower(actionRadius);                
+            }
+        }
+        if (wandering == true) 
+            moveDir(directions[rng.nextInt(8)]);
+        else if (generalDir != -1) 
+            moveDir(directions[generalDir]);
+        else if (targetLoc.x != -1 && targetLoc.y != -1) 
+            moveToLoc(targetLoc);
+        else 
+            generalDir = rng.nextInt(8);
+
+        scanForEC();
+        if (rng.nextInt(2) == 0)            //with probability 1/2, broadcast ID of own EC
+            rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));     //set flag to ECID to signal to other ally ECs
     }
 
     static void runSlanderer() throws GameActionException {
@@ -613,6 +717,7 @@ public strictfp class RobotPlayer {
 
         if(ecID == 0) {
             ecID = getECID();
+            rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));
         }
         
         // senses nearby allies and tries to maintain a fixed distance from them
@@ -718,13 +823,13 @@ public strictfp class RobotPlayer {
             if (flag != 0) {
                 executeInstr(flag);
             }
+            rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));
         }
 
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
             if (robot.type.canBeExposed()) {
                 // It's a slanderer... go get them!
                 if (rc.canExpose(robot.location)) {
-                    System.out.println("e x p o s e d");
                     rc.expose(robot.location);
                     return;
                 }
@@ -756,6 +861,44 @@ public strictfp class RobotPlayer {
      */
     static Direction randomDirection() {
         return directions[(int) (Math.random() * directions.length)];
+    }
+
+    /**
+     *  Robot will scan for EC and send this info via flag
+     *
+     */
+    static void scanForEC() throws GameActionException {
+        int sensorRadius = rc.getType().sensorRadiusSquared;
+
+        RobotInfo[] nearbyRobots = rc.senseNearbyRobots(rc.getLocation(), sensorRadius, null);             //look for ECs
+        for (RobotInfo rinfo : nearbyRobots) {
+            if (rinfo.type == RobotType.ENLIGHTENMENT_CENTER) {
+                if (rinfo.team == rc.getTeam().opponent()) {
+                    //discovered an enemy EC
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)));
+                    }
+                }
+                else if (rinfo.team == Team.NEUTRAL) {
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.NEUTRALEC)))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.NEUTRALEC)));
+                    }
+                }
+                else if (rinfo.team == rc.getTeam()) {
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ALLYEC)))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ALLYEC)));
+                    }
+                }
+                //by adding this break statement, we only broadcast the closest found EC
+                break;
+            }
+        }
     }
 
     /**
