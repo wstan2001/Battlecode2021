@@ -17,7 +17,7 @@ public strictfp class IDMessagePartOne implements FlagMessage{
     }
 
     private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00C00000;
+    private final static int PREFIX_CORRECT = 0x00B00000;
     public static boolean hasCorrectPrefix(int flagCode){
         return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
     }
@@ -30,7 +30,7 @@ public strictfp class IDMessagePartOne implements FlagMessage{
         return FlagUtilities.getFlag(
                 new int[]{
                         this.robotIDPart,
-                        0x0C
+                        0x0B
                 }, new int[]{
                         20, 4
                 }

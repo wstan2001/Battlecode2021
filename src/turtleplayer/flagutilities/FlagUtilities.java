@@ -17,10 +17,8 @@ public strictfp class FlagUtilities {
     }
 
     public static FlagMessage decodeFlag(int flagCode){
-        if(EnemyPresent.hasCorrectPrefix(flagCode)) {
-            return new EnemyPresent(flagCode);
-        }else if(FriendlyPresent.hasCorrectPrefix(flagCode)) {
-            return new FriendlyPresent(flagCode);
+        if(UnitPresent.hasCorrectPrefix(flagCode)) {
+            return new UnitPresent(flagCode);
         }else if(IDMessagePartOne.hasCorrectPrefix(flagCode)){
             return new IDMessagePartOne(flagCode);
         }else if(IDMessagePartTwo.hasCorrectPrefix(flagCode)){

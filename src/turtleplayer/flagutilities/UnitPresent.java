@@ -1,39 +1,43 @@
 package turtleplayer.flagutilities;
 
 import battlecode.common.RobotType;
+import battlecode.common.Team;
 
 import java.util.Objects;
 
 /*
-    implementation of FlagMessage for a flag signalling that there is a friendly nearby
+    implementation of FlagMessage for a flag signalling that there is an enemy nearby
  */
-public strictfp class FriendlyPresent implements FlagMessage{
+public strictfp class UnitPresent implements FlagMessage{
 
     private final RelativeLocation relativeLocation;
     private final int influence;
     private final RobotType robotType;
     private final boolean trueSense;
+    private final Team team;
 
-    public FriendlyPresent(RelativeLocation relativeLocation, int influence, RobotType robotType, boolean trueSense){
+    public UnitPresent(RelativeLocation relativeLocation, int influence, RobotType robotType, boolean trueSense, Team team){
         this.relativeLocation = relativeLocation;
         this.influence = influence;
         this.robotType = robotType;
         this.trueSense = trueSense;
+        this.team = team;
     }
 
-    private final static int PREFIX_BIT_MASK = 0x00E00000;
-    private final static int PREFIX_CORRECT = 0x00E00000;
+    private final static int PREFIX_BIT_MASK = 0x00C00000;
+    private final static int PREFIX_CORRECT = 0x00C00000;
     public static boolean hasCorrectPrefix(int flagCode){
         return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
     }
 
-    public FriendlyPresent(int flagCode){
+    public UnitPresent(int flagCode){
         this.relativeLocation = new RelativeLocation(
                 FlagUtilities.getPartOfFlag(flagCode,3,0)-8,
                 FlagUtilities.getPartOfFlag(flagCode,7,4)-8);
         this.trueSense = FlagUtilities.getPartOfFlag(flagCode, 8,8) == 1;
         this.robotType = RobotType.values()[FlagUtilities.getPartOfFlag(flagCode,10,9)];
-        this.influence = FlagUtilities.getPartOfFlag(flagCode,20,11);
+        this.influence = FlagUtilities.getPartOfFlag(flagCode,19,11);
+        this.team = Team.values()[FlagUtilities.getPartOfFlag(flagCode,21,20)];
     }
 
     public int getInfluence() {
@@ -49,6 +53,10 @@ public strictfp class FriendlyPresent implements FlagMessage{
         return trueSense;
     }
 
+    public Team getTeam() {
+        return team;
+    }
+
     public int getFlagCode(){
         return FlagUtilities.getFlag(
                 new int[]{
@@ -57,9 +65,10 @@ public strictfp class FriendlyPresent implements FlagMessage{
                         this.trueSense? 1:0,
                         this.robotType.ordinal(),
                         this.influence,
-                        0x07
+                        this.team.ordinal(),
+                        0x03
                 }, new int[]{
-                        4, 4, 1, 2, 10, 3
+                        4, 4, 1, 2, 9, 2, 2
                 }
         );
     }
@@ -68,22 +77,23 @@ public strictfp class FriendlyPresent implements FlagMessage{
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        FriendlyPresent that = (FriendlyPresent) o;
-        return influence == that.influence && trueSense == that.trueSense && relativeLocation.equals(that.relativeLocation) && robotType == that.robotType;
+        UnitPresent that = (UnitPresent) o;
+        return influence == that.influence && trueSense == that.trueSense && Objects.equals(relativeLocation, that.relativeLocation) && robotType == that.robotType && team == that.team;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(relativeLocation, influence, robotType, trueSense);
+        return Objects.hash(relativeLocation, influence, robotType, trueSense, team);
     }
 
     @Override
     public String toString() {
-        return "FriendlyPresent{" +
+        return "UnitPresent{" +
                 "relativeLocation=" + relativeLocation +
                 ", influence=" + influence +
                 ", robotType=" + robotType +
                 ", trueSense=" + trueSense +
+                ", team=" + team +
                 '}';
     }
 }

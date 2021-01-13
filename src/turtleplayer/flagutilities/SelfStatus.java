@@ -20,7 +20,7 @@ public strictfp class SelfStatus implements FlagMessage{
     }
 
     private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00B00000;
+    private final static int PREFIX_CORRECT = 0x00900000;
 
     public static boolean hasCorrectPrefix(int flagCode){
         return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
@@ -45,7 +45,7 @@ public strictfp class SelfStatus implements FlagMessage{
                         this.relativeLocation.getX()+64,
                         this.relativeLocation.getY()+64,
                         this.scaledConviction,
-                        0x0B
+                        0x09
                 }, new int[]{
                         7,7,6,4
                 }

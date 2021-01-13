@@ -1,6 +1,7 @@
 package turtleplayer.flagutilities;
 
 import battlecode.common.MapLocation;
+import com.sun.istack.internal.Nullable;
 
 import java.util.Objects;
 
@@ -21,8 +22,12 @@ public strictfp class RelativeLocation {
         return y;
     }
 
-    public MapLocation applyTo(MapLocation mapLocation){
-        return new MapLocation(mapLocation.x + x, mapLocation.y + y);
+    public MapLocation applyTo(@Nullable MapLocation mapLocation){
+        if(mapLocation == null){
+            return null;
+        }else {
+            return new MapLocation(mapLocation.x + x, mapLocation.y + y);
+        }
     }
 
     @Override

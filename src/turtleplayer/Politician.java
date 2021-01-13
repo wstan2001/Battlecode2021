@@ -4,8 +4,10 @@ import battlecode.common.*;
 
 public strictfp class Politician {
     private static RobotController rc;
-    public static void start (RobotController rc){
+    private static AwarenessModule aw;
+    public static void start (RobotController rc, AwarenessModule aw){
         Politician.rc = rc;
+        Politician.aw =aw;
     }
     public static void processTurn() throws GameActionException {
         Team enemy = rc.getTeam().opponent();

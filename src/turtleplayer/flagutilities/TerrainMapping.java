@@ -3,6 +3,8 @@ package turtleplayer.flagutilities;
 import battlecode.common.Direction;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /*
@@ -29,7 +31,7 @@ public strictfp class TerrainMapping implements FlagMessage{
     }
 
     private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00A00000;
+    private final static int PREFIX_CORRECT = 0x00800000;
 
     public static boolean hasCorrectPrefix(int flagCode){
         return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
@@ -61,6 +63,43 @@ public strictfp class TerrainMapping implements FlagMessage{
         }
     }
 
+    public int getBitNumber() {
+        return bitNumber;
+    }
+
+    public Map<RelativeLocation, Boolean> getTurnBits(){
+        int width = (direction == Direction.NORTH || direction == Direction.SOUTH)? 3: 5;
+        int height = (direction == Direction.WEST || direction == Direction.EAST) ? 3 : 5;
+        int startingX, startingY;
+        if(direction == Direction.WEST ){
+            startingX = -4;
+            startingY = -2;
+        }else if(direction == Direction.EAST){
+            startingX = 0;
+            startingY = -2;
+        }else if(direction == Direction.NORTH){
+            startingX = -2;
+            startingY = 0;
+        }else if(direction == Direction.SOUTH){
+            startingX = -2;
+            startingY = -4;
+        }else{
+            System.err.println("INVALID DIRECTION SELECTED");
+            return null;
+        }
+        int endingX = startingX+width;
+        int endingY = startingY+ height;
+        Map<RelativeLocation,Boolean> turnBits = new HashMap<>();
+        int counter = 0;
+        for (int x = startingX; x < endingX; x++) {
+            for(int y= startingY; y < endingY; y++){
+                turnBits.put(new RelativeLocation(x,y),locationTurnsBit[counter]);
+                counter++;
+            }
+        }
+        return turnBits;
+    }
+
     public int getFlagCode(){
         int turnsFlagCode = FlagUtilities.buildFlagCode(locationTurnsBit);
         int directionNumber;
@@ -86,7 +125,7 @@ public strictfp class TerrainMapping implements FlagMessage{
                         turnsFlagCode,
                         directionNumber,
                         bitNumber,
-                        0x0A
+                        0x08
                 }, new int[]{
                         15,2,3,4
                 }

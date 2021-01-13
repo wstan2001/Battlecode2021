@@ -11,14 +11,18 @@ public strictfp class RobotPlayer {
         // This is the RobotController object. You use it to perform actions from this robot,
         // and to get information on its current status.
         System.out.println("I'm a " + rc.getType() + " and I just got created!");
+        AwarenessModule aw = new AwarenessModule();
+        Utilities.start();
+        Team team = rc.getTeam();
         switch (rc.getType()) {
-            case ENLIGHTENMENT_CENTER: EnlightenmentCenter.start(rc); break;
-            case POLITICIAN:           Politician.start(rc);          break;
-            case SLANDERER:            Muckraker.start(rc);           break;
-            case MUCKRAKER:            Slanderer.start(rc);           break;
+            case ENLIGHTENMENT_CENTER: EnlightenmentCenter.start(rc, aw); break;
+            case POLITICIAN:           Politician.start(rc, aw);          break;
+            case SLANDERER:            Muckraker.start(rc, aw);           break;
+            case MUCKRAKER:            Slanderer.start(rc, aw);           break;
         }
         while (true) {
             try {
+                aw.update(rc,true,rc.getRoundNum(), rc.getType(), rc.getLocation(), team);
                 switch (rc.getType()) {
                     case ENLIGHTENMENT_CENTER: EnlightenmentCenter.processTurn(); break;
                     case POLITICIAN:           Politician.processTurn();          break;

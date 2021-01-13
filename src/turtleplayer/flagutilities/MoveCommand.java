@@ -18,7 +18,7 @@ public strictfp class MoveCommand implements FlagMessage{
     }
 
     private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00900000;
+    private final static int PREFIX_CORRECT = 0x00700000;
 
     public static boolean hasCorrectPrefix(int flagCode){
         return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
@@ -44,7 +44,7 @@ public strictfp class MoveCommand implements FlagMessage{
                         this.relativeLocation.getX()+64,
                         this.relativeLocation.getY()+64,
                         this.robotIDPart,
-                        0x09
+                        0x07
                 }, new int[]{
                         7,7,6,4
                 }

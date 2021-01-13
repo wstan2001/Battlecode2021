@@ -6,8 +6,10 @@ import static turtleplayer.Utilities.directions;
 
 public strictfp class EnlightenmentCenter {
     private static RobotController rc;
-    public static void start (RobotController rc){
+    private static AwarenessModule aw;
+    public static void start (RobotController rc, AwarenessModule aw){
         EnlightenmentCenter.rc = rc;
+        EnlightenmentCenter.aw = aw;
     }
     public static void processTurn() throws GameActionException {
         RobotType toBuild = RobotType.SLANDERER;//randomSpawnableRobotType();
