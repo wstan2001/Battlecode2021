@@ -80,8 +80,7 @@ public strictfp class RobotPlayer {
     static Random rng = new Random();
 
     //EC state variables
-    static int[] scoutIDs = new int[20];        //keep track of IDs of units that will broadcast info
-    static int[] troopIDs = new int[10];        //non scout robot IDs... may want to make this more specific later
+    static int[] unitIDs = new int[20];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
     static int xBound0 = -1;       //mod 64 coordinate of left edge
     static int xBound1 = -1;        //mod 64 coordinate of right edge
     static int yBound0 = -1;        //mod 64 coordinate of lower edge
@@ -259,8 +258,6 @@ public strictfp class RobotPlayer {
 
         //System.out.println("Conviction: " + rc.getConviction());
         //System.out.println("Influence: " + rc.getInfluence());
-
-        System.out.println("Before sense: " + Clock.getBytecodesLeft());
         
         int sensorRadius = rc.getType().sensorRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
@@ -281,8 +278,6 @@ public strictfp class RobotPlayer {
             }
         }
 
-        System.out.println("Before build: " + Clock.getBytecodesLeft());
-
         if (phase.equals("Scouting")) {
             if (turnCount % 2 == 0 && turnCount % 8 != 0) {
                 toBuild = RobotType.POLITICIAN;
@@ -294,9 +289,9 @@ public strictfp class RobotPlayer {
                     if (rc.canBuildRobot(toBuild, buildDir, influence)) {
                         rc.buildRobot(toBuild, buildDir, influence);
                         RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(buildDir));
-                        for (int j = 0; j < scoutIDs.length; j++) {
-                            if (scoutIDs[j] == 0) {
-                                scoutIDs[j] = rinfo.getID();
+                        for (int j = 0; j < unitIDs.length; j++) {
+                            if (unitIDs[j] == 0) {
+                                unitIDs[j] = rinfo.getID();
                                 break;
                             }
                         }
@@ -399,9 +394,9 @@ public strictfp class RobotPlayer {
                         rc.buildRobot(toBuild, dir, influence);
                         if (opcode(rc.getFlag(rc.getID())) == OPCODE.TROOP) {      //we can make more than 100 troops but only keep track of this many
                             RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(dir));
-                            for (int i = 0; i < troopIDs.length; i++) {
-                                if (troopIDs[i] == 0) {
-                                    troopIDs[i] = rinfo.getID();
+                            for (int i = 0; i < unitIDs.length; i++) {
+                                if (unitIDs[i] == 0) {
+                                    unitIDs[i] = rinfo.getID();
                                     break;
                                 }
                             }
@@ -420,34 +415,16 @@ public strictfp class RobotPlayer {
             }
         }
 
-        System.out.println("Before scout: " + Clock.getBytecodesLeft());
-
-        for (int i = 0; i < scoutIDs.length; i++) {
-            int id = scoutIDs[i];
+        for (int i = 0; i < unitIDs.length; i++) {
+            int id = unitIDs[i];
             if (rc.canGetFlag(id)) {
                 OPCODE opc = opcode(rc.getFlag(id));
-                //tbh I don't think the OPCODE.SENDECID is necessary...
-                if (opc == OPCODE.SENDECID || opc == OPCODE.SENDBOUNDARIES || opc == OPCODE.SENDCOORDINATES)
+                if (opc == OPCODE.SENDBOUNDARIES || opc == OPCODE.SENDCOORDINATES)
                     executeInstr(rc.getFlag(id));           //decode scout info
             }
             else
-                scoutIDs[i] = 0;
+                unitIDs[i] = 0;
         }
-
-        System.out.println("Before troop: " + Clock.getBytecodesLeft());
-
-        for (int i = 0; i < troopIDs.length; i++) {
-            int id = troopIDs[i];
-            if (rc.canGetFlag(id)) {
-                OPCODE opc = opcode(rc.getFlag(id));
-                if (opc == OPCODE.SENDCOORDINATES || opc == OPCODE.SENDECID)
-                    executeInstr(rc.getFlag(id));           //decode troop info
-            }
-            else
-                troopIDs[i] = 0;
-        }
-
-        System.out.println("Before ally: " + Clock.getBytecodesLeft());
 
         for (int i = 0; i < allyECIDs.length; i++) {
             int id = allyECIDs[i];
@@ -457,9 +434,6 @@ public strictfp class RobotPlayer {
             else
                 allyECIDs[i] = 0;
         }
-
-        System.out.println("end: " + Clock.getBytecodesLeft());
-
         double BID_INFLUENCE_RANDOM_UB = 0.02;
         double BID_INFLUENCE_INCOME_LB = 0.1;
         double BID_INFLUENCE_INCOME_UB = 0.5 + rc.getRoundNum()/9000.f;
@@ -477,9 +451,11 @@ public strictfp class RobotPlayer {
 
         turnCount += 1;
 
-        /*System.out.println("Enemy EC: " + enemyECLoc.size());
-        System.out.println("Neutral EC: " + neutralECLoc.size());
-        System.out.println("Ally EC: " + allyECLoc.size());*/
+        /*for (int i = 0; i < enemyECLoc.length; i++) {
+            if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
+                System.out.println("Enemy EC at (" + enemyECLoc[i].x + "," + enemyECLoc[i].y + ")");
+            }
+        }*/
 
         /*if (xBound0 != -1) 
             System.out.println("xBound0: " + xBound0);
@@ -674,10 +650,10 @@ public strictfp class RobotPlayer {
         //check if done exploring
         if (foundXBound && foundYBound) {
             //robot is done exploring
-            //System.out.println("Done exploring!")
-            //make it go kaboom?
-            //return
-        
+            //it can start to wander with some probability now
+            if (!wandering && rng.nextDouble() < 0.05) {
+                wandering = true;
+            }        
         }
 
         int newFlag = 0;
@@ -774,7 +750,10 @@ public strictfp class RobotPlayer {
         }
 
         //figure out where to move next
-        moveDir(directions[generalDir]);
+        if (wandering)
+            moveDir(directions[rng.nextInt(8)]);
+        else
+            moveDir(directions[generalDir]);
     }
 
     static void runTroop() throws GameActionException {
