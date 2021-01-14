@@ -801,7 +801,7 @@ public strictfp class RobotPlayer {
         }
         
         // senses nearby allies and tries to maintain a fixed distance from them
-        // Using the distance 3 for now, may change eventually
+        // Using the distance 15 for now, may change eventually
         List<RobotInfo> nearbyAllies = new ArrayList<>();
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
         for (RobotInfo robot : nearbyRobots) {
@@ -810,7 +810,7 @@ public strictfp class RobotPlayer {
             }
         }
         if (nearbyAllies.size() > 0) {
-            moveDir(maintainDistance(nearbyAllies, 3));
+            moveDir(maintainDistance(nearbyAllies, 15));
         } else {
             // dont move
         }
