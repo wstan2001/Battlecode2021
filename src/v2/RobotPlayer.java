@@ -1,7 +1,6 @@
-package v1;
+package v2;
 import battlecode.common.*;
 
-import java.awt.*;
 import java.util.List;
 import java.util.Random;
 import java.lang.Math;
@@ -62,7 +61,7 @@ public strictfp class RobotPlayer {
     	SENDCOORDINATES, // units sending coordinates of important locations [5(4) | x_coord (6) | y_coord (6) | data (8)] data will depend on information it sends
         TROOP,  //general infantry politician
         DEFENDER,  //defensive politician to protect slanderers
-    	INVALID;
+    	INVALID
     	//example: let's say we want to tell a unit to move to (15, 16). 15 = 001111 and 16 = 010000, the move opcode is 0000, and the data is 8 random bits. So a valid opcode for this would be
     	//0000 | 001111 | 010000 | 10101010 = 245913.
     	//a scout opcode would be something like 0001 | 10101010101010101010, since we don't care about the last 20 bits.
@@ -179,7 +178,7 @@ public strictfp class RobotPlayer {
     {
         return instr % 256;
     }
-    static int getECID() throws GameActionException 
+    static int getECID()
     {
         for (RobotInfo ri : rc.senseNearbyRobots(-1, ally))
             if(ri.type == RobotType.ENLIGHTENMENT_CENTER)
@@ -190,8 +189,7 @@ public strictfp class RobotPlayer {
     {
         if(rc.canGetFlag(ecID))
         {
-            int flag = rc.getFlag(ecID);
-            return flag;
+            return rc.getFlag(ecID);
         }
         return 0;
     }
@@ -215,8 +213,7 @@ public strictfp class RobotPlayer {
             case DEFENDER: type = "Defender"; break;
             default: break;
         }
-        return;
-    } 
+    }
 
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -229,7 +226,7 @@ public strictfp class RobotPlayer {
         // and to get information on its current status.
         RobotPlayer.rc = rc;
         ally = rc.getTeam();
-        enemy = rc.getTeam().opponent();    
+        enemy = rc.getTeam().opponent();
 
 
         while (true) {
@@ -269,7 +266,8 @@ public strictfp class RobotPlayer {
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
             if (robot.type == RobotType.MUCKRAKER) {
                 //if there are muckrakers nearby, don't build slanderers!
-                canBuildSlanderer = false; 
+                canBuildSlanderer = false;
+                break;
             }
         }
 
@@ -285,7 +283,7 @@ public strictfp class RobotPlayer {
 
         System.out.println("Before build: " + Clock.getBytecodesLeft());
 
-        if (phase == "Scouting") {
+        if (phase.equals("Scouting")) {
             if (turnCount % 2 == 0 && turnCount % 8 != 0) {
                 toBuild = RobotType.POLITICIAN;
                 int randDirection = rng.nextInt(8);
@@ -335,7 +333,7 @@ public strictfp class RobotPlayer {
             if (turnCount > 100)
                 phase = "Default";          //it might be better to extend scouting phase a bit, since we want to find ECs as well as boundaries
         }
-        else if (phase == "Default") {
+        else if (phase.equals( "Default") ){
             if (turnCount % 4 == 0) {
                 //  build random robot
                 toBuild = randomSpawnableRobotType();
@@ -647,13 +645,13 @@ public strictfp class RobotPlayer {
             }
         }
         
-        if (type == "Scout") {
+        if (type.equals("Scout") ){
             scoutBounds();
         }
-        else if (type == "Troop") {
+        else if (type.equals( "Troop") ){
             runTroop();
         }
-        else if (type == "Defender") {
+        else if (type.equals( "Defender") ){
             if (rc.getFlag(rc.getID()) == 0)            //display ID of its EC
                 rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));
 
@@ -799,7 +797,7 @@ public strictfp class RobotPlayer {
                 rc.empower(actionRadius);                
             }
         }
-        if (wandering == true) 
+        if (wandering)
             moveDir(directions[rng.nextInt(8)]);
         else if (generalDir != -1) 
             moveDir(directions[generalDir]);
