@@ -81,8 +81,8 @@ public strictfp class RobotPlayer {
     static Random rng = new Random();
 
     //EC state variables
-    static int[] scoutIDs = new int[30];        //keep track of scout IDs
-    static int[] troopIDs = new int[60];        //non scout robot IDs... may want to make this more specific later
+    static int[] scoutIDs = new int[20];        //keep track of IDs of units that will broadcast info
+    static int[] troopIDs = new int[10];        //non scout robot IDs... may want to make this more specific later
     static int xBound0 = -1;       //mod 64 coordinate of left edge
     static int xBound1 = -1;        //mod 64 coordinate of right edge
     static int yBound0 = -1;        //mod 64 coordinate of lower edge
@@ -263,7 +263,7 @@ public strictfp class RobotPlayer {
         //System.out.println("Conviction: " + rc.getConviction());
         //System.out.println("Influence: " + rc.getInfluence());
 
-        
+        System.out.println("Before sense: " + Clock.getBytecodesLeft());
         
         int sensorRadius = rc.getType().sensorRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
@@ -272,13 +272,18 @@ public strictfp class RobotPlayer {
                 canBuildSlanderer = false; 
             }
         }
-        for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, ally)) {
-            if (opcode(rc.getFlag(robot.getID())) == OPCODE.SENDECID) {
+
+        int processed = 0;
+        for (RobotInfo robot : rc.senseNearbyRobots(rc.getLocation(), sensorRadius, ally)) {
+            if (opcode(rc.getFlag(robot.getID())) == OPCODE.SENDECID && processed < 5) {
                 //get ID of ally EC
+                //it's not worth to sense too many?
                 executeInstr(rc.getFlag(robot.getID()));
+                processed += 1;
             }
         }
 
+        System.out.println("Before build: " + Clock.getBytecodesLeft());
 
         if (phase == "Scouting") {
             if (turnCount % 2 == 0 && turnCount % 8 != 0) {
@@ -417,7 +422,7 @@ public strictfp class RobotPlayer {
             }
         }
 
-        System.out.println("before filter: " + Clock.getBytecodesLeft());
+        System.out.println("Before scout: " + Clock.getBytecodesLeft());
 
         for (int i = 0; i < scoutIDs.length; i++) {
             int id = scoutIDs[i];
@@ -431,6 +436,7 @@ public strictfp class RobotPlayer {
                 scoutIDs[i] = 0;
         }
 
+        System.out.println("Before troop: " + Clock.getBytecodesLeft());
 
         for (int i = 0; i < troopIDs.length; i++) {
             int id = troopIDs[i];
@@ -443,6 +449,8 @@ public strictfp class RobotPlayer {
                 troopIDs[i] = 0;
         }
 
+        System.out.println("Before ally: " + Clock.getBytecodesLeft());
+
         for (int i = 0; i < allyECIDs.length; i++) {
             int id = allyECIDs[i];
             if (rc.canGetFlag(id)) {
@@ -452,10 +460,7 @@ public strictfp class RobotPlayer {
                 allyECIDs[i] = 0;
         }
 
-
-        if (rc.getID() == 12966)
-            System.out.println("b4 bidding: " + Clock.getBytecodesLeft());
-
+        System.out.println("end: " + Clock.getBytecodesLeft());
 
         double BID_INFLUENCE_RANDOM_UB = 0.02;
         double BID_INFLUENCE_INCOME_LB = 0.1;
@@ -473,9 +478,6 @@ public strictfp class RobotPlayer {
         //System.out.println("Total Votes: " + rc.getTeamVotes());
 
         turnCount += 1;
-
-        if (rc.getID() == 12966)
-            System.out.println("at end: " + Clock.getBytecodesLeft());
 
         /*System.out.println("Enemy EC: " + enemyECLoc.size());
         System.out.println("Neutral EC: " + neutralECLoc.size());
