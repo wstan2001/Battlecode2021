@@ -80,7 +80,7 @@ public strictfp class RobotPlayer {
     static Random rng = new Random();
 
     //EC state variables
-    static int[] unitIDs = new int[20];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
+    static int[] unitIDs = new int[30];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
     static int xBound0 = -1;       //mod 64 coordinate of left edge
     static int xBound1 = -1;        //mod 64 coordinate of right edge
     static int yBound0 = -1;        //mod 64 coordinate of lower edge
@@ -337,17 +337,30 @@ public strictfp class RobotPlayer {
                     
                 if (toBuild == RobotType.POLITICIAN) {
                     influence = Math.max(20, (int) Math.pow(rc.getInfluence(), 2.0/3));
-                    int poliType = rng.nextInt(1);
+                    int poliType = rng.nextInt(2);
                     //change the above later. Right now we don't make defenders
+                    //start by assuming we're going to make a random direction troop
+                    int randDirection = rng.nextInt(8);
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
+                        rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
                     if (poliType == 0) {
-                        //build a troop
-                        /*if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9))) //op, xcoord, ycoord, of location to seek
-                            rc.setFlag(encodeInstruction(OPCODE.TROOP, 62, 62, 9));*/
-                        int randDirection = rng.nextInt(8);
-                        if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
-                            rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
+                        //build a randomized troop, don't need to do anything here
+                        assert true;
                     }
                     else if (poliType == 1) {
+                        //try to attack random neutral EC
+                        int m = neutralECLoc.length;
+                        int offset = rng.nextInt(m);
+                        for (int i = 0; i < neutralECLoc.length; i++) {
+                            if (neutralECLoc[(offset + i) % m].x != -1 && neutralECLoc[(offset + i) % m].y != -1) {
+                                if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, neutralECLoc[(offset + i) % m].x, neutralECLoc[(offset + i) % m].y, 9))) //op, xcoord, ycoord, of location to seek
+                                    rc.setFlag(encodeInstruction(OPCODE.TROOP, neutralECLoc[(offset + i) % m].x, neutralECLoc[(offset + i) % m].y, 9));
+                                System.out.println("Sending troop to neutral EC at " + neutralECLoc[(offset + i) % m].x + " " + neutralECLoc[(offset + i) % m].y);
+                                break;
+                            }
+                        }
+                    }
+                    else if (poliType == 2) {
                         //build a defender
                         if(rc.canSetFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0))) //op, xcoord, ycoord, direction to patrol
                             rc.setFlag(encodeInstruction(OPCODE.DEFENDER, 0, 0, 0));
@@ -455,6 +468,16 @@ public strictfp class RobotPlayer {
             if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
                 System.out.println("Enemy EC at (" + enemyECLoc[i].x + "," + enemyECLoc[i].y + ")");
             }
+        }
+        for (int i = 0; i < neutralECLoc.length; i++) {
+            if (neutralECLoc[i].x != -1 && neutralECLoc[i].y != -1) {
+                System.out.println("Neutral EC at (" + neutralECLoc[i].x + "," + neutralECLoc[i].y + ")");
+            }
+        }
+        for (int i = 0; i < allyECLoc.length; i++) {
+            if (allyECLoc[i].x != -1 && allyECLoc[i].y != -1) {
+                System.out.println("Ally EC at (" + allyECLoc[i].x + "," + allyECLoc[i].y + ")");
+            }
         }*/
 
         /*if (xBound0 != -1) 
@@ -526,84 +549,50 @@ public strictfp class RobotPlayer {
         //normalize coordinates
         y = (y - yBound0 + 64) % 64;
         x = (x - xBound0 + 64) % 64;
+        MapLocation loc = new MapLocation(x, y);
+
+        //remove the loc if it already exists
+        for (int i = 0; i < enemyECLoc.length; i++) {           //first remove the location from enemyECLoc if it exists there already
+            if (loc.equals(enemyECLoc[i])) {
+                enemyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < neutralECLoc.length; i++) {         //remove from neutralECLoc
+            if (loc.equals(neutralECLoc[i])) {
+                neutralECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < allyECLoc.length; i++) {         //remove from allyECLoc
+            if (loc.equals(allyECLoc[i])) {
+                allyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+
+        //then add it to the correct location
         switch (intToCoordinfo(data)) {
             case ENEMYEC:
-                MapLocation enemyLoc = new MapLocation(x, y);
-                for (int i = 0; i < enemyECLoc.length; i++) {           //first remove the location from enemyECLoc if it exists there already
-                    if (enemyLoc.equals(enemyECLoc[i])) {
-                        enemyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < neutralECLoc.length; i++) {         //remove from neutralECLoc
-                    if (enemyLoc.equals(neutralECLoc[i])) {
-                        neutralECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < allyECLoc.length; i++) {         //remove from allyECLoc
-                    if (enemyLoc.equals(allyECLoc[i])) {
-                        allyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
                 for (int i = 0; i < enemyECLoc.length; i++) {           //add the location to enemyECLoc
                     if (enemyECLoc[i].x == -1 && enemyECLoc[i].y == -1) {
-                        enemyECLoc[i] = enemyLoc;
+                        enemyECLoc[i] = loc;
                         break;
                     }
                 }
                 break;
             case NEUTRALEC:
-                MapLocation neutralLoc = new MapLocation(x, y);
-                for (int i = 0; i < neutralECLoc.length; i++) {           //first remove the location from neutralECLoc if it exists there already
-                    if (neutralLoc.equals(neutralECLoc[i])) {
-                        neutralECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < enemyECLoc.length; i++) {         //remove from enemyECLoc
-                    if (neutralLoc.equals(enemyECLoc[i])) {
-                        enemyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < allyECLoc.length; i++) {         //remove from allyECLoc
-                    if (neutralLoc.equals(allyECLoc[i])) {
-                        allyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
                 for (int i = 0; i < neutralECLoc.length; i++) {           //add the location to neutralECLoc
                     if (neutralECLoc[i].x == -1 && neutralECLoc[i].y == -1) {
-                        neutralECLoc[i] = neutralLoc;
+                        neutralECLoc[i] = loc;
                         break;
                     }
                 }
                 break;
             case ALLYEC:
-                MapLocation allyLoc = new MapLocation(x, y);
-                for (int i = 0; i < allyECLoc.length; i++) {           //first remove the location from allyECLoc if it exists there already
-                    if (allyLoc.equals(allyECLoc[i])) {
-                        allyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < neutralECLoc.length; i++) {         //remove from neutralECLoc
-                    if (allyLoc.equals(neutralECLoc[i])) {
-                        neutralECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
-                for (int i = 0; i < enemyECLoc.length; i++) {         //remove from enemyECLoc
-                    if (allyLoc.equals(enemyECLoc[i])) {
-                        enemyECLoc[i] = new MapLocation(-1, -1);
-                        break;
-                    }
-                }
                 for (int i = 0; i < allyECLoc.length; i++) {           //add the location to allyECLoc
                     if (allyECLoc[i].x == -1 && allyECLoc[i].y == -1) {
-                        allyECLoc[i] = allyLoc;
+                        allyECLoc[i] = loc;
                         break;
                     }
                 }
@@ -762,26 +751,55 @@ public strictfp class RobotPlayer {
         final int senseRadius = 25;
         final double baseCooldown = 1.0;
 
+        /*System.out.println("General Direction: " + generalDir);
+        System.out.println("Wandering: " + wandering);
+        System.out.println("Target: " + targetLoc.x + " " + targetLoc.y);*/
+        
+
         if (!wandering && rng.nextDouble() < 0.05) {
             //any troop has a 5% chance of beginning to move in random directions
             wandering = true;
         } 
         if (rc.getInfluence() > 10) {
+            boolean shouldEmpower = false;
             RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
             RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
             if (neutralEC.length > 0) {
                 System.out.println("Found neutral EC!");
             }
-            if (attackable.length + neutralEC.length > 0 && rc.canEmpower(actionRadius)) {
+            //it might be worth it for a troop who is targeting a neutral EC to not get "distracted" and empower along the way
+            for (int i = 0; i < attackable.length; i++) {
+                if (attackable[i].getType() == RobotType.ENLIGHTENMENT_CENTER)
+                    shouldEmpower = true;
+            }
+            if (attackable.length > 3 || neutralEC.length > 0)
+                shouldEmpower = true;
+            if (shouldEmpower && rc.canEmpower(actionRadius)) {
                 rc.empower(actionRadius);                
             }
         }
-        if (wandering)
-            moveDir(directions[rng.nextInt(8)]);
-        else if (generalDir != -1) 
-            moveDir(directions[generalDir]);
-        else if (targetLoc.x != -1 && targetLoc.y != -1) 
+        if (generalDir != -1) { 
+            if (wandering)
+                moveDir(directions[rng.nextInt(8)]);
+            else
+                moveDir(directions[generalDir]);
+        }
+        else if (targetLoc.x != -1 && targetLoc.y != -1) {
+            //sometimes there will be extra troops sent to an already captured neutral EC
+            //we don't want these troops to clog the EC
+            int dx = targetLoc.x - ((rc.getLocation().x - xBound0 + 64) % 64);
+            int dy = targetLoc.y - ((rc.getLocation().y - yBound0 + 64) % 64);
+            if (rc.canSenseLocation(rc.getLocation().translate(dx, dy))) {
+                RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().translate(dx, dy));
+                if (rinfo != null && rinfo.getTeam() == rc.getTeam() && rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER) {
+                    //don't crowd the ally EC
+                    //System.out.println("I'm gonna stop crowding!");
+                    targetLoc = new MapLocation(-1, -1);
+                    generalDir = rng.nextInt(8);
+                }
+            }
             moveToLoc(targetLoc);
+        }
         else 
             generalDir = rng.nextInt(8);
 
