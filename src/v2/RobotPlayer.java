@@ -906,16 +906,20 @@ public strictfp class RobotPlayer {
         }
         
         // senses nearby allies and tries to maintain a fixed distance from them
-        // Using the distance 15 for now, may change eventually
-        List<RobotInfo> nearbyAllies = new ArrayList<>();
+        // Using the distance 5 for now, may change eventually
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
+	boolean doIRun = false, alliesNearby = false;
         for (RobotInfo robot : nearbyRobots) {
-            if (robot.team == ally) {
-                nearbyAllies.add(robot);
-            }
+            if (robot.team == enemy && robot.type == RobotType.MUCKRAKER) {
+                doIRun = true;
+            } else if (robot.team == ally) {
+		alliesNearby = true;
+	    }
         }
-        if (nearbyAllies.size() > 0) {
-            moveDir(maintainDistance(nearbyAllies, 15));
+	if (doIRun){
+	    moveDir(maintainDistance(nearbyRobots, 15, enemy));
+	} else if (alliesNearby) {
+            moveDir(maintainDistance(nearbyRobots, 5, ally));
         } else {
             // dont move
         }
@@ -950,15 +954,15 @@ public strictfp class RobotPlayer {
             return;
         }
         
-        List<RobotInfo> nearbyAllies = new ArrayList<>();
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
+	boolean alliesNearby = false;
         for (RobotInfo robot : nearbyRobots) {
             if (robot.team == ally) {
-                nearbyAllies.add(robot);
+                alliesNearby = true;
             }
         }
-        if (nearbyAllies.size() > 0) {
-            moveDir(maintainDistance(nearbyAllies, 5));
+        if (alliesNearby) {
+            moveDir(maintainDistance(nearbyRobots, 5, ally));
         } else {
             // dont move
         }
@@ -982,7 +986,7 @@ public strictfp class RobotPlayer {
     * Helper function to compute a direction for a robot to move to maintain a certain distance from a list of robots
     * The best direction is computed by weighting penalties between directions with the sum of the squares of their possible distances from all the robots
     **/
-    static Direction maintainDistance(List<RobotInfo> nearbyAllies, double dist) {
+    static Direction maintainDistance(RobotInfo[] nearbyRobots, double dist, Team team) {
         
         // finds the direction which gives minimum penalty
         double minPenalty = 999999999;
