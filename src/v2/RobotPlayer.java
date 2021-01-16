@@ -214,6 +214,46 @@ public strictfp class RobotPlayer {
         }
     }
 
+    static int[] biddingActionAmounts = new int[]{1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20} ;
+    static int biddingAmountToAction (int biddingAmount){
+        if(biddingAmount >7){
+            return (biddingAmount/2 )+ 2;
+        }else{
+            return  biddingAmount-1;
+        }
+    }
+
+//    static double rewardForWinningBid (int roundNum){
+//        return 10.0;//*Math.exp(0.0015*roundNum);
+//    }
+//    static final double bidLosingPenalty = 0.1;
+//    static double[] biddingActionRewards = new double[]{-1, -2, 7, 6, 5, 4, 2, 0, -2, -4, -6, -8, -10};
+//    static int[] biddingActionOccurrences = new int[]{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+//    static int expectedNewInfluenceIfNoBid = 150;
+    static int previousNumVotes = 0;
+    static int previousBidAmount = 0;
+    static double aggression=2;
+    static final double AGGRESSION_DECAY_RATE = 0.8;
+    static final int AGGRESSION_INC_RATE = 3;
+    static double getAggressionDecayRate(int roundNum, int numVotes){
+        double proportionVotesNecessary = (751.0-numVotes)/(1500-roundNum);
+        return 0.7 + (roundNum*0.1/1500.0) + Math.max(0.0,Math.min(proportionVotesNecessary-0.45,0.2))/2.0;
+    }
+    static double getAggressionIncreaseRate(int roundNum, int numVotes){
+        double proportionVotesNecessary = (751.0-numVotes)/(1500-roundNum);
+        return 2 + roundNum*0.5/1500 + Math.max(0.0,Math.min(proportionVotesNecessary-0.45,0.2))*4;
+    }
+    static int convToIntRandomly(double d){
+        int lb = (int) d;
+        double prob = d - lb;
+        if(prob > rng.nextDouble()){
+            return lb + 1;
+        }else{
+            return lb;
+        }
+    }
+
+
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
      * If this method returns, the robot dies!
@@ -255,6 +295,7 @@ public strictfp class RobotPlayer {
         boolean canBuildSlanderer = true;
         Direction buildDir;
         int influence = 1;
+        // boolean hasSpentInfluence = rc.getInfluence() < expectedNewInfluenceIfNoBid;
 
         //System.out.println("Conviction: " + rc.getConviction());
         //System.out.println("Influence: " + rc.getInfluence());
@@ -447,16 +488,62 @@ public strictfp class RobotPlayer {
             else
                 allyECIDs[i] = 0;
         }
-        double BID_INFLUENCE_RANDOM_UB = 0.02;
-        double BID_INFLUENCE_INCOME_LB = 0.1;
-        double BID_INFLUENCE_INCOME_UB = 0.5 + rc.getRoundNum()/9000.f;
-		int influenceLeft = rc.getInfluence();
-        int passiveInfluenceIncome = (int) (Math.ceil(Math.sqrt(rc.getRoundNum())*0.2)+0.5);
-		int bidAmount = (int) (influenceLeft * Math.random() * BID_INFLUENCE_RANDOM_UB + passiveInfluenceIncome * Math.random() * (BID_INFLUENCE_INCOME_UB-BID_INFLUENCE_INCOME_LB)+BID_INFLUENCE_INCOME_LB);
-		//int bidAmount = (int) (influenceLeft * (rng.nextGaussian() / 50.0 + 0.05));
-        bidAmount = Math.min(Math.max(bidAmount,0), (int) (influenceLeft * 0.25));
-        if(rc.canBid(bidAmount))
-		    rc.bid(bidAmount);
+
+        int numTeamVotes = rc.getTeamVotes();
+        int roundNumber = rc.getRoundNum();
+        int influenceLeft = rc.getInfluence();
+        boolean hasWonBid = numTeamVotes > previousNumVotes;
+        if(hasWonBid){
+            System.out.println("Won, start with: "+ aggression);
+            aggression *= getAggressionDecayRate(roundNumber,numTeamVotes);
+            System.out.println("Won, end with: "+ aggression);
+        }else{
+            System.out.println("Lost, start with: "+ aggression);
+            aggression += getAggressionIncreaseRate(roundNumber,numTeamVotes);
+            System.out.println("Lost, end with: "+ aggression);
+        }
+        int bidAmount;
+        if(aggression > 0.7 *influenceLeft || influenceLeft < 21){ // slow down bro leave some for the others
+            bidAmount = 0;
+            //aggression = 0.5 * influenceLeft;
+            aggression = 0;
+        }else {
+            bidAmount = Math.min(convToIntRandomly(aggression), (int) (0.5 * influenceLeft));
+        }
+        previousNumVotes = numTeamVotes;
+//        if(hasSpentInfluence){
+//            int bidIndx= biddingAmountToAction(previousBidAmount);
+//            double newReward = hasWonBid? rewardForWinningBid(roundNumber) - previousBidAmount : -previousBidAmount;
+//            biddingActionRewards[bidIndx] = biddingActionOccurrences[bidIndx]*biddingActionRewards[bidIndx] + newReward;
+//            biddingActionOccurrences[bidIndx]++;
+//        }
+//        previousNumVotes = numTeamVotes;
+//        int influenceLeft = rc.getInfluence();
+//        int passiveInfluenceIncome = (int) (Math.ceil(Math.sqrt(rc.getRoundNum())*0.2)+0.5);
+//        expectedNewInfluenceIfNoBid = influenceLeft + passiveInfluenceIncome;
+//        int bestBidIndx = 0;
+//        double bestReward = -1000;
+//        for (int i = 0; i < 13; i++) {
+//            double reward = biddingActionRewards[i] + Math.sqrt(4 * Math.log(roundNumber+2)/(biddingActionAmounts[i]*(roundNumber+1)));
+//            if(reward > bestReward){
+//                bestBidIndx = i;
+//                bestReward = reward;
+//            }
+//        }
+//        int bidAmount = biddingActionAmounts[bestBidIndx];
+//        previousBidAmount = bidAmount;
+
+
+//        double BID_INFLUENCE_RANDOM_UB = 0.02;
+//        double BID_INFLUENCE_INCOME_LB = 0.1;
+//        double BID_INFLUENCE_INCOME_UB = 0.5 + rc.getRoundNum()/9000.f;
+//        bidAmount = (int) (influenceLeft * Math.random() * BID_INFLUENCE_RANDOM_UB + passiveInfluenceIncome * Math.random() * (BID_INFLUENCE_INCOME_UB-BID_INFLUENCE_INCOME_LB)+BID_INFLUENCE_INCOME_LB);
+//		//int bidAmount = (int) (influenceLeft * (rng.nextGaussian() / 50.0 + 0.05));
+//        bidAmount = Math.min(Math.max(bidAmount,0), (int) (influenceLeft * 0.25));
+        previousBidAmount = bidAmount;
+        if(rc.canBid(bidAmount) && numTeamVotes < 751) {
+            rc.bid(bidAmount);
+        }
 	    
 	    //System.out.println("Turn: " + rc.getRoundNum());
         //System.out.println("Current bid: " + bidAmount);
