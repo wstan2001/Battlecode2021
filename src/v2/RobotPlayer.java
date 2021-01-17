@@ -416,24 +416,33 @@ public strictfp class RobotPlayer {
 
                     if (temp == 0 && xBound0 != -1 && yBound0 != -1) {
                         //go to enemyEC
-                        temp = rng.nextInt(6);
-                        boolean enemyECFound = false;
-                        for (int i = 0; i < 6; i++) {
-                            if (enemyECLoc[(temp + i) % 6].x != -1 && enemyECLoc[(temp + i) % 6].y != -1) {
-                                //valid enemy EC found
-                                MapLocation loc = enemyECLoc[(temp + i) % 6];
-                                if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
-                                    rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
-                                enemyECFound = true;
-                                break;
+                        int numFoundEnemy = 0;
+                        for (int i = 0; i < enemyECLoc.length; i++) {
+                            if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1)
+                                numFoundEnemy += 1;
+                        }
+                        if (numFoundEnemy == 0) {
+                            //give muckraker random direction
+                            int randDirection = rng.nextInt(8);
+                             if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
+                                 rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                        }
+                        else {
+                            temp = rng.nextInt(numFoundEnemy);
+                            for (int i = 0; i < enemyECLoc.length; i++) {
+                                if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
+                                    if (temp == 0) {
+                                        //send muckracker to this location
+                                        MapLocation loc = enemyECLoc[i];
+                                        if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
+                                            rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
+                                        break;
+                                    }
+                                    else
+                                        temp -= 1;
+                                }
                             }
                         }
-                       if (!enemyECFound) {
-                           //give muckraker random direction
-                           int randDirection = rng.nextInt(8);
-                            if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
-                                rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
-                       }
                     }
                     else {
                         //move in random direction
@@ -494,13 +503,13 @@ public strictfp class RobotPlayer {
         int influenceLeft = rc.getInfluence();
         boolean hasWonBid = numTeamVotes > previousNumVotes;
         if(hasWonBid){
-            System.out.println("Won, start with: "+ aggression);
+            //System.out.println("Won, start with: "+ aggression);
             aggression *= getAggressionDecayRate(roundNumber,numTeamVotes);
-            System.out.println("Won, end with: "+ aggression);
+            //System.out.println("Won, end with: "+ aggression);
         }else{
-            System.out.println("Lost, start with: "+ aggression);
+            //System.out.println("Lost, start with: "+ aggression);
             aggression += getAggressionIncreaseRate(roundNumber,numTeamVotes);
-            System.out.println("Lost, end with: "+ aggression);
+            //System.out.println("Lost, end with: "+ aggression);
         }
         int bidAmount;
         if(aggression > 0.7 *influenceLeft || influenceLeft < 21){ // slow down bro leave some for the others
