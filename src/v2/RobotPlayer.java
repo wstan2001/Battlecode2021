@@ -228,8 +228,9 @@ public strictfp class RobotPlayer {
     static int previousNumVotes = 0;
     static int previousBidAmount = 0;
     static double aggression=2;
-    static final double AGGRESSION_DECAY_RATE = 0.8;
-    static final int AGGRESSION_INC_RATE = 3;
+    static double avgLosingBid=5;
+    static int numLosingBids = 1;
+
     static double getAggressionDecayRate(int roundNum, int numVotes){
         double proportionVotesNecessary = (751.0-numVotes)/(1500-roundNum);
         return 0.7 + (roundNum*0.1/1500.0) + Math.max(0.0,Math.min(proportionVotesNecessary-0.45,0.2))/2.0;
@@ -402,7 +403,6 @@ public strictfp class RobotPlayer {
                 else if (toBuild == RobotType.MUCKRAKER) {
                     influence = 1;
                     int temp = rng.nextInt(2);
-
                     if (temp == 0 && xBound0 != -1 && yBound0 != -1) {
                         //go to enemyEC
                         int numFoundEnemy = 0;
@@ -496,12 +496,16 @@ public strictfp class RobotPlayer {
             aggression *= getAggressionDecayRate(roundNumber,numTeamVotes);
             //System.out.println("Won, end with: "+ aggression);
         }else{
+            avgLosingBid = (avgLosingBid * ((double)numLosingBids)/(numLosingBids+1)) + previousBidAmount/(numLosingBids+1.0);
+            numLosingBids++;
             //System.out.println("Lost, start with: "+ aggression);
             aggression += getAggressionIncreaseRate(roundNumber,numTeamVotes);
             //System.out.println("Lost, end with: "+ aggression);
         }
+        double exceeding = Math.min(150,aggression) - 50;
+        boolean shouldSkip = rng.nextInt(100000) < exceeding*exceeding;
         int bidAmount;
-        if(aggression > 0.4 * influenceLeft || influenceLeft < 101){ // slow down bro leave some for the others
+        if(aggression > 0.7 *influenceLeft || shouldSkip || influenceLeft < 50){ // slow down bro leave some for the others
             bidAmount = 0;
             //aggression = 0.5 * influenceLeft;
             aggression = 5;
@@ -994,13 +998,13 @@ public strictfp class RobotPlayer {
         // senses nearby allies and tries to maintain a fixed distance from them
         // Using the distance 5 for now, may change eventually
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
-	boolean doIRun = false, alliesNearby = false;
-        for (RobotInfo robot : nearbyRobots) {
-            if (robot.team == enemy && robot.type == RobotType.MUCKRAKER) {
-                doIRun = true;
-            } else if (robot.team == ally) {
-		alliesNearby = true;
-	    }
+        boolean doIRun = false, alliesNearby = false;
+            for (RobotInfo robot : nearbyRobots) {
+                if (robot.team == enemy && robot.type == RobotType.MUCKRAKER) {
+                    doIRun = true;
+                } else if (robot.team == ally) {
+            alliesNearby = true;
+            }
         }
 	if (doIRun){
 	    moveDir(maintainDistance(nearbyRobots, 15, enemy));
