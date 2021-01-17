@@ -974,7 +974,7 @@ public strictfp class RobotPlayer {
     }
     
     // computes penalty for a certain loc given nearbyAllies and dist
-    static double computePenalty(MapLocation loc, List<RobotInfo> nearbyAllies, double dist) {
+    static double computePenalty(MapLocation loc, RobotInfo[] nearbyAllies, double dist) {
         double penalty = 0;
         for (RobotInfo robot : nearbyAllies) {
             penalty += Math.pow((absoluteDist(loc, robot.getLocation()) - dist), 2);
@@ -992,7 +992,7 @@ public strictfp class RobotPlayer {
         double minPenalty = 999999999;
         Direction heading = Direction.CENTER;
         for (Direction d : Direction.values()) {
-            double penalty = computePenalty(rc.getLocation().add(d), nearbyAllies, dist);
+            double penalty = computePenalty(rc.getLocation().add(d), nearbyRobots, dist);
             if (penalty < minPenalty) {
                 minPenalty = penalty;
                 heading = d;
@@ -1239,4 +1239,3 @@ public strictfp class RobotPlayer {
         return true;
     }
 }
-
