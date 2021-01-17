@@ -58,9 +58,11 @@ public strictfp class RobotPlayer {
     	NEEDECID, //units will broadcast this if they don't have an EC ID [2(4) | random data(20)]
         SENDECID, //EC will broadcast this when it broadcasts its ID [3(4) | id (20)]
     	SENDBOUNDARIES, //scouts will broadcast this when it finds a boundary [4(4) | x-coord(6) | y-coord(6) | see google doc for details on last 8 bits]
-    	SENDCOORDINATES, // units sending coordinates of important locations [5(4) | x_coord (6) | y_coord (6) | data (8)] data will depend on information it sends
+    	ENEMYEC, // units sending coordinates of important locations [5(4) | x_coord (6) | y_coord (6) | data (8)] data will depend on information it sends
         TROOP,  //general infantry politician
         DEFENDER,  //defensive politician to protect slanderers
+        NEUTRALEC,
+        ALLYEC,
     	INVALID
     	//example: let's say we want to tell a unit to move to (15, 16). 15 = 001111 and 16 = 010000, the move opcode is 0000, and the data is 8 random bits. So a valid opcode for this would be
     	//0000 | 001111 | 010000 | 10101010 = 245913.
@@ -87,6 +89,9 @@ public strictfp class RobotPlayer {
     static int yBound1 = -1;        //mod 64 coordinate of upper edge
     static int xSize = -1;        //xBound1 - xBound0, will be btwn 32 and 64 inc
     static int ySize = -1;        //yBound1 - yBound0, will be btwn 32 and 64 inc
+
+    static MapLocation targetNeutralLoc = new MapLocation(-1, -1);
+    static int targetNeutralCost = 999999;             //influence + 0.5 * distance^2, prioritize lower cost ECs
 
     static MapLocation[] enemyECLoc = {new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1)};       // store normalized coordinates of enemy EC
     static MapLocation[] neutralECLoc = {new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1)};      // store normalized coordinates of enemy EC
@@ -116,9 +121,11 @@ public strictfp class RobotPlayer {
     	    case NEEDECID: return 2;
     	    case SENDECID: return 3;
     	    case SENDBOUNDARIES: return 4;
-    	    case SENDCOORDINATES: return 5;
+    	    case ENEMYEC: return 5;                 //data should contain floor of (enemy EC's influence / 10)
             case TROOP: return 6;                   //IMPORTANT! When initializing a troop that goes to a target location, make sure its last 8 bits of extra data is > 7
             case DEFENDER: return 7;
+            case NEUTRALEC: return 8;
+            case ALLYEC: return 9;
     	}
     	return -1;
     }
@@ -131,29 +138,15 @@ public strictfp class RobotPlayer {
     	    case 2: return OPCODE.NEEDECID;
     	    case 3: return OPCODE.SENDECID;
     	    case 4: return OPCODE.SENDBOUNDARIES;
-    	    case 5: return OPCODE.SENDCOORDINATES;
+    	    case 5: return OPCODE.ENEMYEC;
             case 6: return OPCODE.TROOP;
             case 7: return OPCODE.DEFENDER;
+            case 8: return OPCODE.NEUTRALEC;
+            case 9: return OPCODE.ALLYEC;
     	}
     	return OPCODE.INVALID;
     }
-    static int coordinfoToInt(COORDINFO cinfo) {
-        switch (cinfo) {
-            case ENEMYEC: return 0;
-            case NEUTRALEC: return 1;
-            case ALLYEC: return 2;
-        }
-        return -1;
-    }
-    static COORDINFO intToCoordinfo(int x) {
-        switch (x) {
-            case 0: return COORDINFO.ENEMYEC;
-            case 1: return COORDINFO.NEUTRALEC;
-            case 2: return COORDINFO.ALLYEC;
-        }
-        return COORDINFO.INVALID;
-    }
-    static int encodeInstruction(OPCODE op, int x, int y, int data) //MOVE, SCOUT, NEEDECID, SENDCOORDINATES
+    static int encodeInstruction(OPCODE op, int x, int y, int data) //MOVE, SCOUT, NEEDECID, etc
     {
     	if(opcodeToInt(op) == -1)
     	    System.out.println("INVALID OPCODE RECEIVED");
@@ -201,7 +194,7 @@ public strictfp class RobotPlayer {
             case SCOUT: generalDir = instrData(instr); type = "Scout"; break;
             case SENDECID: addAllyECID(instr); break;
             case SENDBOUNDARIES: processBoundary(instrX(instr), instrY(instr), instrData(instr)); break;
-            case SENDCOORDINATES: processCoords(instrX(instr), instrY(instr), instrData(instr)); break;
+            case ENEMYEC: processEnemyEC(instrX(instr), instrY(instr), instrData(instr)); break;
             case TROOP: 
                 type = "Troop";
                 if (instrData(instr) > 7)       //this troop has a target location
@@ -210,6 +203,8 @@ public strictfp class RobotPlayer {
                     generalDir = instrData(instr);
                 break;
             case DEFENDER: type = "Defender"; break;
+            case NEUTRALEC: processNeutralEC(instrX(instr), instrY(instr), instrData(instr)); break;
+            case ALLYEC: processAllyEC(instrX(instr), instrY(instr), instrData(instr)); break;
             default: break;
         }
     }
@@ -364,10 +359,10 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            /*if ((xBound0 != -1 && yBound0 != -1) || turnCount > 100)
-                phase = "Default";*/
-            if (turnCount > 100)
-                phase = "Default";          //it might be better to extend scouting phase a bit, since we want to find ECs as well as boundaries
+            if ((xBound0 != -1 && yBound0 != -1) || turnCount > 100)
+                phase = "Default";
+            /*if (turnCount > 100)
+                phase = "Default";        */  //it might be better to extend scouting phase a bit, since we want to find ECs as well as boundaries
         }
         else if (phase.equals( "Default") ){
             if (turnCount % 4 == 0) {
@@ -388,17 +383,11 @@ public strictfp class RobotPlayer {
                         //build a randomized troop, don't need to do anything here
                         assert true;
                     }
-                    else if (poliType == 1) {
+                    else if (poliType == 1 && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1) {
                         //try to attack random neutral EC
-                        int m = neutralECLoc.length;
-                        int offset = rng.nextInt(m);
-                        for (int i = 0; i < neutralECLoc.length; i++) {
-                            if (neutralECLoc[(offset + i) % m].x != -1 && neutralECLoc[(offset + i) % m].y != -1) {
-                                if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, neutralECLoc[(offset + i) % m].x, neutralECLoc[(offset + i) % m].y, 9))) //op, xcoord, ycoord, of location to seek
-                                    rc.setFlag(encodeInstruction(OPCODE.TROOP, neutralECLoc[(offset + i) % m].x, neutralECLoc[(offset + i) % m].y, 9));
-                                System.out.println("Sending troop to neutral EC at " + neutralECLoc[(offset + i) % m].x + " " + neutralECLoc[(offset + i) % m].y);
-                                break;
-                            }
+                        if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9))) { //op, xcoord, ycoord, of location to seek
+                            rc.setFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9));
+                            System.out.println("Sending troop to neutral EC at " + targetNeutralLoc.x + " " + targetNeutralLoc.y);
                         }
                     }
                     else if (poliType == 2) {
@@ -413,7 +402,6 @@ public strictfp class RobotPlayer {
                 else if (toBuild == RobotType.MUCKRAKER) {
                     influence = 1;
                     int temp = rng.nextInt(2);
-
                     if (temp == 0 && xBound0 != -1 && yBound0 != -1) {
                         //go to enemyEC
                         int numFoundEnemy = 0;
@@ -482,7 +470,7 @@ public strictfp class RobotPlayer {
             int id = unitIDs[i];
             if (rc.canGetFlag(id)) {
                 OPCODE opc = opcode(rc.getFlag(id));
-                if (opc == OPCODE.SENDBOUNDARIES || opc == OPCODE.SENDCOORDINATES)
+                if (opc == OPCODE.SENDBOUNDARIES || opc == OPCODE.ENEMYEC || opc == OPCODE.NEUTRALEC || opc == OPCODE.ALLYEC)
                     executeInstr(rc.getFlag(id));           //decode scout info
             }
             else
@@ -529,10 +517,10 @@ public strictfp class RobotPlayer {
             bidAmount = 0;*/
         }else {
             previousRoundSkipped =false;
-            if (aggression > 0.3 * influenceLeft || influenceLeft < 100) { // slow down bro leave some for the others
+            if (aggression > 0.4 * influenceLeft || influenceLeft < 100) { // slow down bro leave some for the others
                 bidAmount = 0;
                 //aggression = 0.5 * influenceLeft;
-                aggression = 0;
+                aggression = 5;
             } else {
                 bidAmount = convToIntRandomly(aggression);
             }
@@ -654,7 +642,7 @@ public strictfp class RobotPlayer {
         }
     }
 
-    static void processCoords(int x, int y, int data) throws GameActionException {
+    static void processEnemyEC(int x, int y, int data) throws GameActionException {
         //remember that the coordinates we're receiving are not normalized, so if we don't
         //have the boundary coordinates, this command is useless
         if (yBound0 == -1 || xBound0 == -1) 
@@ -664,6 +652,14 @@ public strictfp class RobotPlayer {
         y = (y - yBound0 + 64) % 64;
         x = (x - xBound0 + 64) % 64;
         MapLocation loc = new MapLocation(x, y);
+
+        if (loc.equals(targetNeutralLoc)) {
+            //reset target neutral
+            targetNeutralLoc = new MapLocation(-1, -1);
+            targetNeutralCost = 999999;
+        }
+
+        //System.out.println("Found enemy EC at " + x + " " + y + " with influence " + data * 10);
 
         //remove the loc if it already exists
         for (int i = 0; i < enemyECLoc.length; i++) {           //first remove the location from enemyECLoc if it exists there already
@@ -686,33 +682,109 @@ public strictfp class RobotPlayer {
         }
 
         //then add it to the correct location
-        switch (intToCoordinfo(data)) {
-            case ENEMYEC:
-                for (int i = 0; i < enemyECLoc.length; i++) {           //add the location to enemyECLoc
-                    if (enemyECLoc[i].x == -1 && enemyECLoc[i].y == -1) {
-                        enemyECLoc[i] = loc;
-                        break;
-                    }
-                }
+        for (int i = 0; i < enemyECLoc.length; i++) {           //add the location to enemyECLoc
+            if (enemyECLoc[i].x == -1 && enemyECLoc[i].y == -1) {
+                enemyECLoc[i] = loc;
                 break;
-            case NEUTRALEC:
-                for (int i = 0; i < neutralECLoc.length; i++) {           //add the location to neutralECLoc
-                    if (neutralECLoc[i].x == -1 && neutralECLoc[i].y == -1) {
-                        neutralECLoc[i] = loc;
-                        break;
-                    }
-                }
-                break;
-            case ALLYEC:
-                for (int i = 0; i < allyECLoc.length; i++) {           //add the location to allyECLoc
-                    if (allyECLoc[i].x == -1 && allyECLoc[i].y == -1) {
-                        allyECLoc[i] = loc;
-                        break;
-                    }
-                }
-                break;
+            }
+        }
+    }
+
+    static void processNeutralEC(int x, int y, int data) throws GameActionException {
+        //remember that the coordinates we're receiving are not normalized, so if we don't
+        //have the boundary coordinates, this command is useless
+        if (yBound0 == -1 || xBound0 == -1) 
+            return;
+
+        //normalize coordinates
+        y = (y - yBound0 + 64) % 64;
+        x = (x - xBound0 + 64) % 64;
+        MapLocation loc = new MapLocation(x, y);
+
+        MapLocation selfLoc = new MapLocation((rc.getLocation().x - xBound0) % 64, (rc.getLocation().y - yBound0) % 64);
+        int cost = (int) (0.5 * selfLoc.distanceSquaredTo(loc) + data * 10);
+        if (cost < targetNeutralCost) {
+            targetNeutralLoc = loc;
+            targetNeutralCost = cost;
         }
 
+        //System.out.println("Found neutral EC at " + x + " " + y + " with influence " + data * 10);
+
+        //remove the loc if it already exists
+        for (int i = 0; i < enemyECLoc.length; i++) {           //first remove the location from enemyECLoc if it exists there already
+            if (loc.equals(enemyECLoc[i])) {
+                enemyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < neutralECLoc.length; i++) {         //remove from neutralECLoc
+            if (loc.equals(neutralECLoc[i])) {
+                neutralECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < allyECLoc.length; i++) {         //remove from allyECLoc
+            if (loc.equals(allyECLoc[i])) {
+                allyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+
+        //then add it to the correct location
+        for (int i = 0; i < neutralECLoc.length; i++) {           //add the location to enemyECLoc
+            if (neutralECLoc[i].x == -1 && neutralECLoc[i].y == -1) {
+                neutralECLoc[i] = loc;
+                break;
+            }
+        }
+    }
+
+    static void processAllyEC(int x, int y, int data) throws GameActionException {
+        //remember that the coordinates we're receiving are not normalized, so if we don't
+        //have the boundary coordinates, this command is useless
+        if (yBound0 == -1 || xBound0 == -1) 
+            return;
+
+        //normalize coordinates
+        y = (y - yBound0 + 64) % 64;
+        x = (x - xBound0 + 64) % 64;
+        MapLocation loc = new MapLocation(x, y);
+
+        if (loc.equals(targetNeutralLoc)) {
+            //reset target neutral
+            targetNeutralLoc = new MapLocation(-1, -1);
+            targetNeutralCost = 999999;
+        }
+
+        //System.out.println("Found ally EC at " + x + " " + y + " with influence " + data * 10);
+
+        //remove the loc if it already exists
+        for (int i = 0; i < enemyECLoc.length; i++) {           //first remove the location from enemyECLoc if it exists there already
+            if (loc.equals(enemyECLoc[i])) {
+                enemyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < neutralECLoc.length; i++) {         //remove from neutralECLoc
+            if (loc.equals(neutralECLoc[i])) {
+                neutralECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+        for (int i = 0; i < allyECLoc.length; i++) {         //remove from allyECLoc
+            if (loc.equals(allyECLoc[i])) {
+                allyECLoc[i] = new MapLocation(-1, -1);
+                break;
+            }
+        }
+
+        //then add it to the correct location
+        for (int i = 0; i < allyECLoc.length; i++) {           //add the location to enemyECLoc
+            if (allyECLoc[i].x == -1 && allyECLoc[i].y == -1) {
+                allyECLoc[i] = loc;
+                break;
+            }
+        }
     }
 
     static void runPolitician() throws GameActionException {
@@ -754,10 +826,12 @@ public strictfp class RobotPlayer {
         if (foundXBound && foundYBound) {
             //robot is done exploring
             //it can start to wander with some probability now
-            if (!wandering && rng.nextDouble() < 0.05) {
+            if (!wandering && rng.nextDouble() < 0.03) {
                 wandering = true;
             }        
         }
+
+        rc.setFlag(0);          //don't send outdated info
 
         int newFlag = 0;
         int ybound_mod64 = 0;      //y coord
@@ -868,10 +942,12 @@ public strictfp class RobotPlayer {
         /*System.out.println("General Direction: " + generalDir);
         System.out.println("Wandering: " + wandering);
         System.out.println("Target: " + targetLoc.x + " " + targetLoc.y);*/
-        
 
-        if (!wandering && rng.nextDouble() < 0.05) {
-            //any troop has a 5% chance of beginning to move in random directions
+
+        rc.setFlag(0);              //don't send outdated info
+
+        if (!wandering && rng.nextDouble() < 0.03) {
+            //any troop has a 3% chance of beginning to move in random directions
             wandering = true;
         } 
         if (rc.getInfluence() > 10) {
@@ -1033,6 +1109,11 @@ public strictfp class RobotPlayer {
         int sensorRadius = rc.getType().sensorRadiusSquared;
         MapLocation curLoc = rc.getLocation();
 
+        if (!wandering && rng.nextDouble() < 0.03) {
+            //any muck has a 3% chance of beginning to move in random directions
+            wandering = true;
+        } 
+
         if(ecID == 0) {
             ecID = getECID();
             int flag = getECFlag();
@@ -1063,8 +1144,12 @@ public strictfp class RobotPlayer {
         if (!chase(curTarget)) {
             curTarget = -1;
             //try to find a current target or move to location
-            if (generalDir != -1) 
-                moveDir(directions[generalDir]);
+            if (generalDir != -1) {
+                if (wandering)
+                    moveDir(directions[rng.nextInt(8)]);
+                else
+                    moveDir(directions[generalDir]);
+            }
             else if (targetLoc.x != -1 && targetLoc.y != -1)
                 moveToLoc(targetLoc);
         }
@@ -1089,26 +1174,28 @@ public strictfp class RobotPlayer {
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots(rc.getLocation(), sensorRadius, null);             //look for ECs
         for (RobotInfo rinfo : nearbyRobots) {
             if (rinfo.type == RobotType.ENLIGHTENMENT_CENTER) {
+                int influenceOfEC = rinfo.getInfluence();
+                influenceOfEC = Math.min(influenceOfEC, 2559);           //don't have enough bits to report influence >= 2560
                 if (rinfo.team == rc.getTeam().opponent()) {
                     //discovered an enemy EC
-                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)))) {//op, xcoord, ycoord, data 
-                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ENEMYEC)));
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.ENEMYEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.ENEMYEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10));
                     }
                 }
                 else if (rinfo.team == Team.NEUTRAL) {
-                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.NEUTRALEC)))) {//op, xcoord, ycoord, data 
-                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.NEUTRALEC)));
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.NEUTRALEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.NEUTRALEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10));
                     }
                 }
                 else if (rinfo.team == rc.getTeam()) {
-                    if (rc.canSetFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ALLYEC)))) {//op, xcoord, ycoord, data 
-                        rc.setFlag(encodeInstruction(OPCODE.SENDCOORDINATES, rinfo.getLocation().x % 64, 
-                            rinfo.getLocation().y % 64, coordinfoToInt(COORDINFO.ALLYEC)));
+                    if (rc.canSetFlag(encodeInstruction(OPCODE.ALLYEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10))) {//op, xcoord, ycoord, data 
+                        rc.setFlag(encodeInstruction(OPCODE.ALLYEC, rinfo.getLocation().x % 64, 
+                            rinfo.getLocation().y % 64, (int) influenceOfEC / 10));
                     }
                 }
                 //by adding this break statement, we only broadcast the closest found EC
