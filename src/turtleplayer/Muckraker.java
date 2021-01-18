@@ -2,6 +2,9 @@ package turtleplayer;
 
 import battlecode.common.*;
 
+import static turtleplayer.Utilities.randomDirection;
+import static turtleplayer.Utilities.tryMove;
+
 public strictfp class Muckraker {
     private static RobotController rc;
     private static AwarenessModule aw;
@@ -22,7 +25,7 @@ public strictfp class Muckraker {
                 }
             }
         }
-        //if (tryMove(randomDirection()))
-        //    System.out.println("I moved!");
+        if (tryMove(randomDirection(),rc))
+            System.out.println("I moved!");
     }
 }

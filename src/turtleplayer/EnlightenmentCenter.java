@@ -3,6 +3,7 @@ package turtleplayer;
 import battlecode.common.*;
 
 import static turtleplayer.Utilities.directions;
+import static turtleplayer.Utilities.randomSpawnableRobotType;
 
 public strictfp class EnlightenmentCenter {
     private static RobotController rc;
@@ -11,8 +12,9 @@ public strictfp class EnlightenmentCenter {
         EnlightenmentCenter.rc = rc;
         EnlightenmentCenter.aw = aw;
     }
+
     public static void processTurn() throws GameActionException {
-        RobotType toBuild = RobotType.SLANDERER;//randomSpawnableRobotType();
+        RobotType toBuild = randomSpawnableRobotType();
         int influence = 50;
         for (Direction dir : directions) {
             if (rc.canBuildRobot(toBuild, dir, influence)) {

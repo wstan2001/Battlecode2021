@@ -2,6 +2,9 @@ package turtleplayer;
 
 import battlecode.common.*;
 
+import static turtleplayer.Utilities.randomDirection;
+import static turtleplayer.Utilities.tryMove;
+
 public strictfp class Politician {
     private static RobotController rc;
     private static AwarenessModule aw;
@@ -10,6 +13,9 @@ public strictfp class Politician {
         Politician.aw =aw;
     }
     public static void processTurn() throws GameActionException {
+        assert rc != null;
+        assert rc.getTeam() != null;
+        assert rc.getTeam().opponent() != null;
         Team enemy = rc.getTeam().opponent();
         int actionRadius = rc.getType().actionRadiusSquared;
         RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
@@ -19,7 +25,7 @@ public strictfp class Politician {
             System.out.println("empowered");
             return;
         }
-        //if (tryMove(randomDirection()))
-        //    System.out.println("I moved!");
+        if (tryMove(randomDirection(),rc))
+            System.out.println("I moved!");
     }
 }

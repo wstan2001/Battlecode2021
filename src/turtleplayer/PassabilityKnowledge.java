@@ -1,38 +1,40 @@
 package turtleplayer;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import battlecode.common.Clock;
 
 public class PassabilityKnowledge{
-    private final List<Boolean> flagKnowledge;
-    private Double sensedKnowledge;
+    public boolean[] flagKnowledge;
+    public boolean[] validFlagKnowledge;
+    public double sensedKnowledge;
 
-    private Optional<Double> getSensedKnowledge(){
-        return Optional.ofNullable(sensedKnowledge);
+    PassabilityKnowledge(double sensedKnowledge){
+        this.sensedKnowledge = sensedKnowledge;
     }
-    private Optional<Boolean> getFlagKnowledge(int index){
-        return Optional.ofNullable(flagKnowledge.get(index));
+
+    PassabilityKnowledge(boolean flagBit, int bitNumber){
+        flagKnowledge = new boolean[8];
+        flagKnowledge[bitNumber] =  flagBit;
+        validFlagKnowledge = new boolean[8];
+        sensedKnowledge = -1.0;
     }
 
     PassabilityKnowledge(){
-        flagKnowledge = new ArrayList<>();
-        for (int i = 0; i < 8; i++) {
-            flagKnowledge.add(null);
-        }
-        sensedKnowledge = null;
+        flagKnowledge = new boolean[8];
+        validFlagKnowledge = new boolean[8];
+        sensedKnowledge = -1.0;
     }
+
     boolean haveAnyKnowledge(){
-        return getFlagKnowledge(0).isPresent() || getSensedKnowledge().isPresent();
+        return sensedKnowledge > -0.5 || validFlagKnowledge[0];
     }
     double bestEstimate(){
-        if(getSensedKnowledge().isPresent()){
+        if(sensedKnowledge > -0.5){
             return sensedKnowledge;
         }else{
             double estimate =0;
             for (int i = 0; i < 8; i++) {
-                if(getFlagKnowledge(i).isPresent()){
-                    if(flagKnowledge.get(i)) {
+                if(validFlagKnowledge[i]){
+                    if(flagKnowledge[i]) {
                         estimate += (1 << (7 - i));
                     }
                 }else{
@@ -43,11 +45,5 @@ public class PassabilityKnowledge{
             estimate *= (9.0f/256);
             return 1.0/estimate;
         }
-    }
-    void updateWithSensed(double sensedPassability){
-        sensedKnowledge = sensedPassability;
-    }
-    void updateWithFlag(int bitNumber, boolean bitValue){
-        flagKnowledge.set(bitNumber,bitValue);
     }
 }
