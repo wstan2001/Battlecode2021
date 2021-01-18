@@ -1020,9 +1020,9 @@ public strictfp class RobotPlayer {
             }
         }
 	if (doIRun){
-	    moveDir(maintainDistance(nearbyRobots, 15, enemy));
+	    moveDir(maintainDistance(nearbyRobots, 15.0, enemy));
 	} else if (alliesNearby) {
-            moveDir(maintainDistance(nearbyRobots, 5, ally));
+            moveDir(maintainDistance(nearbyRobots, 5.0, ally));
         } else {
             // dont move
         }
@@ -1065,7 +1065,7 @@ public strictfp class RobotPlayer {
             }
         }
         if (alliesNearby) {
-            moveDir(maintainDistance(nearbyRobots, 5, ally));
+            moveDir(maintainDistance(nearbyRobots, 5.0, ally));
         } else {
             // dont move
         }
@@ -1076,11 +1076,13 @@ public strictfp class RobotPlayer {
         return Math.sqrt(Math.pow(loc1.x - loc2.x, 2) + Math.pow(loc1.y - loc2.y, 2));
     }
     
-    // computes penalty for a certain loc given nearbyAllies and dist
-    static double computePenalty(MapLocation loc, RobotInfo[] nearbyAllies, double dist) {
+    // computes penalty for a certain loc given nearbyRobots, distance, and a team
+    static double computePenalty(MapLocation loc, RobotInfo[] nearbyRobots, double dist, Team team) {
         double penalty = 0;
-        for (RobotInfo robot : nearbyAllies) {
-            penalty += Math.pow((absoluteDist(loc, robot.getLocation()) - dist), 2);
+        for (RobotInfo robot : nearbyRobots) {
+            if (robot.team == team) {
+                penalty += Math.pow((absoluteDist(loc, robot.getLocation()) - dist), 2);
+            }
         }
         return penalty;
     }
@@ -1095,7 +1097,7 @@ public strictfp class RobotPlayer {
         double minPenalty = 999999999;
         Direction heading = Direction.CENTER;
         for (Direction d : Direction.values()) {
-            double penalty = computePenalty(rc.getLocation().add(d), nearbyRobots, dist);
+            double penalty = computePenalty(rc.getLocation().add(d), nearbyRobots, dist, team);
             if (penalty < minPenalty) {
                 minPenalty = penalty;
                 heading = d;
