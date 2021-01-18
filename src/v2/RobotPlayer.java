@@ -69,20 +69,13 @@ public strictfp class RobotPlayer {
     	//a scout opcode would be something like 0001 | 10101010101010101010, since we don't care about the last 20 bits.
     } 
 
-    public enum COORDINFO {
-        ENEMYEC, //scout has discovered enemy EC
-        NEUTRALEC, //scout has discovered neutral EC
-        ALLYEC, //scout has discovered ally EC
-        INVALID
-    }
-
     static int turnCount = 0;       //each EC needs to keep track of this since their creation might happen at anytime
     static String phase = "Scouting";
     static int ecID = 0;
     static Random rng = new Random();
 
     //EC state variables
-    static int[] unitIDs = new int[30];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
+    static int[] unitIDs = new int[40];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
     static int xBound0 = -1;       //mod 64 coordinate of left edge
     static int xBound1 = -1;        //mod 64 coordinate of right edge
     static int yBound0 = -1;        //mod 64 coordinate of lower edge
@@ -440,14 +433,36 @@ public strictfp class RobotPlayer {
                     }
                 }
 
-                for (Direction dir : directions) {
+                int offset = rng.nextInt(8);        //picks the direction we will try to spawn robot in
+                if (toBuild == RobotType.SLANDERER && xBound0 != -1 && yBound0 != -1) {         //try to find optimal slander spawn direction
+                    MapLocation centroid = new MapLocation(0, 0);         //find centroid of enemy ECs
+                    int numEnemy = 0;
+                    for (MapLocation loc : enemyECLoc) {
+                        if (loc.x != -1 && loc.y != -1) {
+                            numEnemy += 1;
+                            centroid = centroid.translate(loc.x, loc.y);
+                        }
+                    }
+                    if (numEnemy != 0) {
+                        centroid = new MapLocation(centroid.x / numEnemy, centroid.y / numEnemy);
+                        //if we do find enemies, spawn the Sland away from the centroid
+                        MapLocation selfLoc = rc.getLocation();
+                        selfLoc = new MapLocation((selfLoc.x - xBound0) % 64, (selfLoc.y - yBound0) % 64);      //normalize
+                        //System.out.println("Centroid: " + centroid);
+                        //System.out.println("Optimal sland spawn is " + oppositeDir(selfLoc.directionTo(centroid)));
+                        offset = getDirIdx(oppositeDir(selfLoc.directionTo(centroid)));
+                        offset = Math.max(offset, 0);           //in the rare case that offset somehow is Direction.CENTER
+                    }
+                }
+                for (int i = 0; i < directions.length; i++) {
+                    Direction dir = directions[(dirHelper[i] + offset + 8) % 8];
                     if (rc.canBuildRobot(toBuild, dir, influence)) {
                         rc.buildRobot(toBuild, dir, influence);
                         if (opcode(rc.getFlag(rc.getID())) == OPCODE.TROOP) {      //we can make more than 100 troops but only keep track of this many
                             RobotInfo rinfo = rc.senseRobotAtLocation(rc.getLocation().add(dir));
-                            for (int i = 0; i < unitIDs.length; i++) {
-                                if (unitIDs[i] == 0) {
-                                    unitIDs[i] = rinfo.getID();
+                            for (int j = 0; j < unitIDs.length; j++) {
+                                if (unitIDs[j] == 0) {
+                                    unitIDs[j] = rinfo.getID();
                                     break;
                                 }
                             }
@@ -590,7 +605,7 @@ public strictfp class RobotPlayer {
             System.out.println("xBound1: " + xBound1);
         if (yBound1 != -1) 
             System.out.println("yBound1: " + yBound1);*/
-        
+
     }
 
     static void addAllyECID(int instr) throws GameActionException {
@@ -826,7 +841,7 @@ public strictfp class RobotPlayer {
         if (foundXBound && foundYBound) {
             //robot is done exploring
             //it can start to wander with some probability now
-            if (!wandering && rng.nextDouble() < 0.03) {
+            if (!wandering && rng.nextDouble() < 0.01) {
                 wandering = true;
             }        
         }
@@ -960,8 +975,8 @@ public strictfp class RobotPlayer {
 
         rc.setFlag(0);              //don't send outdated info
 
-        if (!wandering && rng.nextDouble() < 0.03) {
-            //any troop has a 3% chance of beginning to move in random directions
+        if (!wandering && rng.nextDouble() < 0.01) {
+            //any troop has a 1% chance of beginning to move in random directions
             wandering = true;
         } 
         if (rc.getInfluence() > 10) {
@@ -1077,15 +1092,43 @@ public strictfp class RobotPlayer {
     }
 
     static void runSlanderer() throws GameActionException {
-        int actionRadius = rc.getType().actionRadiusSquared;
+        int sensorRadius = rc.getType().sensorRadiusSquared;
         Team ally = rc.getTeam();
         Team enemy = ally.opponent();
 
-        if(ecID == 0) {
-            ecID = getECID();
-            rc.setFlag(encodeInstruction(OPCODE.SENDECID, 0, 0, ecID));
+        RobotInfo[] nearbyEnemy = rc.senseNearbyRobots(sensorRadius, enemy);
+        MapLocation selfLoc = rc.getLocation();
+        MapLocation closestMuck = new MapLocation(-1, -1);
+        for (RobotInfo rinfo : nearbyEnemy) {
+            if (rinfo.getType() == RobotType.MUCKRAKER) {
+                if (closestMuck.equals(new MapLocation(-1, -1)) || selfLoc.distanceSquaredTo(rinfo.getLocation()) < selfLoc.distanceSquaredTo(closestMuck))
+                    closestMuck = rinfo.getLocation();
+            }
         }
-        
+
+        if (!closestMuck.equals(new MapLocation(-1, -1))) {
+            //if there is a muckraker nearby
+            Direction away = oppositeDir(selfLoc.directionTo(closestMuck));
+            moveSlander(away);
+        }
+        else {
+            Direction away = Direction.CENTER;
+            RobotInfo[] nearbyAlly = rc.senseNearbyRobots(5, ally);
+            for (RobotInfo rinfo : nearbyAlly) {
+                if (rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER) {
+                    //don't clog own EC
+                    away = oppositeDir(selfLoc.directionTo(rinfo.getLocation()));
+                    break;
+                }
+            }
+            if (away != Direction.CENTER)
+                moveSlander(away);
+            else if (rng.nextDouble() < 0.2)
+                moveSlander(directions[rng.nextInt(8)]);
+            //slanderers generally don't move unless too close to EC or muckraker nearby
+        }
+
+        /*
         // senses nearby allies and tries to maintain a fixed distance from them
         // Using the distance 5 for now, may change eventually
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
@@ -1104,6 +1147,7 @@ public strictfp class RobotPlayer {
         } else {
             // dont move
         }
+        */
     }
 
     static void defendSland() throws GameActionException {
@@ -1189,8 +1233,8 @@ public strictfp class RobotPlayer {
         int sensorRadius = rc.getType().sensorRadiusSquared;
         MapLocation curLoc = rc.getLocation();
 
-        if (!wandering && rng.nextDouble() < 0.03) {
-            //any muck has a 3% chance of beginning to move in random directions
+        if (!wandering && rng.nextDouble() < 0.01) {
+            //any muck has a 1% chance of beginning to move in random directions
             wandering = true;
         } 
 
@@ -1362,29 +1406,32 @@ public strictfp class RobotPlayer {
         
         double minPenalty = 99999;
         int[] temp = {0, 1, -1};        //move roughly according to general direction
+        int ccw = 1;
+        if (rng.nextInt(2) == 1)
+            ccw = 7;                    //it should be -1, but negative mods are ugly in code
 
         //don't get too close to boundaries
         if (!rc.onTheMap(curloc.translate(0, 3))) {
             while (generalDir == 0 || generalDir == 1 || generalDir == 7) {
-                generalDir += 1;
+                generalDir += ccw;
                 generalDir %= 8;
             }
         }
         if (!rc.onTheMap(curloc.translate(3, 0))) {
             while (generalDir == 1 || generalDir == 2 || generalDir == 3) {
-                generalDir += 1;
+                generalDir += ccw;
                 generalDir %= 8;
             }
         }
         if (!rc.onTheMap(curloc.translate(0, -3))) {
             while (generalDir == 3 || generalDir == 4 || generalDir == 5) {
-                generalDir += 1;
+                generalDir += ccw;
                 generalDir %= 8;
             }
         }
         if (!rc.onTheMap(curloc.translate(-3, 0))) {
             while (generalDir == 5 || generalDir == 6 || generalDir == 7) {
-                generalDir += 1;
+                generalDir += ccw;
                 generalDir %= 8;
             }
         }
@@ -1418,6 +1465,44 @@ public strictfp class RobotPlayer {
         }
     }
 
+
+    /**
+     * Pretty much same as moveDir but offers wider range of movement (5 possibilities)
+     * ignores the existence of generalDir and does not try to "unstick" slanderers
+     * @param dir
+     * @throws GameActionException
+     */
+    static void moveSlander(Direction dir) throws GameActionException {
+        if (!rc.isReady())
+            return;
+
+        double baseCooldown = 2.0;          //slanderer
+        int dirIdx = getDirIdx(dir);
+        if (dirIdx == -1) {
+            return;
+        }
+
+        Direction heading = Direction.CENTER;
+        MapLocation curloc = rc.getLocation();
+        
+        double minPenalty = 999999;
+        int[] temp = {0, 1, -1, 2, -2};        //move roughly according to general direction
+
+        for (int i : temp) {
+            Direction h = directions[(dirIdx + i + 8) % 8];
+            if (rc.canSenseLocation(curloc.add(h))) {
+                double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
+                if (rc.canMove(h) && adjPenalty < minPenalty - Math.abs(i)) {       //prioritize moving in given direction
+                    heading = h;
+                    minPenalty = adjPenalty;
+                }
+            }
+        }
+        if (heading != Direction.CENTER) {
+            rc.move(heading);
+        }
+    }
+
     /**
      * Makes robot pursue enemy robot with certain ID
      * 
@@ -1431,5 +1516,12 @@ public strictfp class RobotPlayer {
         RobotInfo rinfo = rc.senseRobot(enemyID);
         moveDir(rc.getLocation().directionTo(rinfo.getLocation()));          //take a step towards enemy
         return true;
+    }
+
+    static Direction oppositeDir(Direction dir) throws GameActionException {
+        if (getDirIdx(dir) == -1)
+            return Direction.CENTER;
+        else
+            return directions[(getDirIdx(dir) + 4) % 8];
     }
 }
