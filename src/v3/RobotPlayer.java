@@ -287,6 +287,7 @@ public strictfp class RobotPlayer {
         boolean canBuildSlanderer = true;
         Direction buildDir;
         int influence = 1;
+        int[] goodSlandererInfluences = new int[]{21, 41, 63, 85, 107, 130, 154, 178, 203, 228};
         // boolean hasSpentInfluence = rc.getInfluence() < expectedNewInfluenceIfNoBid;
 
         //System.out.println("Conviction: " + rc.getConviction());
@@ -352,7 +353,12 @@ public strictfp class RobotPlayer {
                     influence = 1;
                 }
                 else
+                {
+                    for (int inf : goodSlandererInfluences)
+                        if (inf < slandInfl)
+                            influence = Math.max(influence, inf);
                     influence = Math.max(21, slandInfl);
+                }
             }
             else if (toBuild == RobotType.MUCKRAKER) {
                 influence = 1;
@@ -891,9 +897,9 @@ public strictfp class RobotPlayer {
      */
     static RobotType midSpawnRobot() {
         double prob = Math.random();
-        if(prob < 0.1){
+        if(prob < 0.20){
             return RobotType.SLANDERER;
-        }else if(prob < 0.55){
+        }else if(prob < 0.65){
             return RobotType.MUCKRAKER;
         }else{
             return RobotType.POLITICIAN;
