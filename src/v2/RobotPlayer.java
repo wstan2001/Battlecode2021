@@ -509,7 +509,7 @@ public strictfp class RobotPlayer {
         if(!previousRoundSkipped) {
             if (hasWonBid) {
                 //System.out.println("Won, start with: "+ aggression);
-                aggression *= Math.max(1.0,getAggressionDecayRate(roundNumber, proportionVotesNecessary));
+                aggression *= Math.max(1.01,getAggressionDecayRate(roundNumber, proportionVotesNecessary));
                 //System.out.println("Won, end with: "+ aggression);
             } else {
                 avgLosingBid = (avgLosingBid * ((double) numLosingBids) / (numLosingBids + 1.0)) + previousBidAmount / (numLosingBids + 1.0);
@@ -523,7 +523,7 @@ public strictfp class RobotPlayer {
         double minBidFrequency = ((double)roundNumber*roundNumber/0.8e7)+0.25;
         double biddingFrequency = minBidFrequency+Math.min(0.8,proportionVotesNecessary)*(1.0/0.8)*(1-minBidFrequency);
         double exceedingFactor = (Math.min(200,Math.max(100,aggression))/100)- 1;
-        boolean shouldSkip = rng.nextDouble() <= exceedingFactor*exceedingFactor || rng.nextDouble() > biddingFrequency;
+        boolean shouldSkip = rng.nextDouble() <= exceedingFactor*exceedingFactor || rng.nextDouble() > biddingFrequency || aggression > 0.4 * influenceLeft || influenceLeft < 100;
         int bidAmount;
         if(shouldSkip){
             previousRoundSkipped = true;
@@ -532,13 +532,7 @@ public strictfp class RobotPlayer {
             bidAmount = 0;*/
         }else {
             previousRoundSkipped =false;
-            if (aggression > 0.4 * influenceLeft || influenceLeft < 100) { // slow down bro leave some for the others
-                bidAmount = 0;
-                //aggression = 0.5 * influenceLeft;
-                aggression = 5;
-            } else {
-                bidAmount = convToIntRandomly(aggression);
-            }
+            bidAmount = convToIntRandomly(aggression);
         }
         previousNumVotes = numTeamVotes;
 //        if(hasSpentInfluence){
@@ -1030,7 +1024,7 @@ public strictfp class RobotPlayer {
                             }
                         }else{
                             if(robotInfo.location.equals(targetLoc)){
-                                effectiveness += convictionUseOnEach;
+                                effectiveness += convictionUseOnEach*2;
                             }
                             if(robotInfo.conviction < convictionUseOnEach){
                                 effectiveness += 50;
