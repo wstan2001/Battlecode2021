@@ -12,9 +12,9 @@ import java.util.Objects;
  */
 public strictfp class TerrainMapping implements FlagMessage{
 
-    private final int bitNumber;
-    private final Direction direction;
-    private final boolean[] locationTurnsBit;
+    public final int bitNumber;
+    public final Direction direction;
+    public final boolean[] locationTurnsBit;
 
     /*
      * requires 0 <= bitNumber <= 7, where 0 is the most significant and 7 the least
@@ -63,11 +63,7 @@ public strictfp class TerrainMapping implements FlagMessage{
         }
     }
 
-    public int getBitNumber() {
-        return bitNumber;
-    }
-
-    public Map<RelativeLocation, Boolean> getTurnBits(){
+    public RelativeLocation[] getRelativeLocations(){
         int width = (direction == Direction.NORTH || direction == Direction.SOUTH)? 3: 5;
         int height = (direction == Direction.WEST || direction == Direction.EAST) ? 3 : 5;
         int startingX, startingY;
@@ -89,15 +85,14 @@ public strictfp class TerrainMapping implements FlagMessage{
         }
         int endingX = startingX+width;
         int endingY = startingY+ height;
-        Map<RelativeLocation,Boolean> turnBits = new HashMap<>();
+        RelativeLocation[] relativeLocations = new RelativeLocation[15];
         int counter = 0;
         for (int x = startingX; x < endingX; x++) {
             for(int y= startingY; y < endingY; y++){
-                turnBits.put(new RelativeLocation(x,y),locationTurnsBit[counter]);
-                counter++;
+                relativeLocations[counter++] = new RelativeLocation(x,y);
             }
         }
-        return turnBits;
+        return relativeLocations;
     }
 
     public int getFlagCode(){

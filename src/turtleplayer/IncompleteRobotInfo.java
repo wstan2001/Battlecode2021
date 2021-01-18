@@ -4,28 +4,26 @@ import battlecode.common.MapLocation;
 import battlecode.common.RobotInfo;
 import battlecode.common.RobotType;
 import battlecode.common.Team;
-import com.sun.istack.internal.Nullable;
+import org.jetbrains.annotations.Nullable;
 import turtleplayer.flagutilities.IDMessagePartOne;
 import turtleplayer.flagutilities.IDMessagePartTwo;
 import turtleplayer.flagutilities.SelfStatus;
 import turtleplayer.flagutilities.UnitPresent;
 
-import java.util.Optional;
-
 public class IncompleteRobotInfo{
 
-    private boolean couldBeSlanderer;
-    private RobotType robotType;
-    private final Team team;
+    public boolean couldBeSlanderer;
+    public RobotType robotType;
+    public final Team team;
 
     @Nullable
-    private Integer robotId;
+    public Integer robotId;
     @Nullable
-    private MapLocation lastSeenMapLocation;
+    public MapLocation lastSeenMapLocation;
     @Nullable
-    private Integer lastSeenRoundNumber;
+    public Integer lastSeenRoundNumber;
     @Nullable
-    private Integer lastSeenConviction;
+    public Integer lastSeenConviction;
 
     IncompleteRobotInfo(IDMessagePartOne idMessagePartOne, IDMessagePartTwo idMessagePartTwo, int roundNumber){
         this(idMessagePartTwo.getTeam(),false,idMessagePartTwo.getRobotType(),
@@ -35,8 +33,8 @@ public class IncompleteRobotInfo{
 
     IncompleteRobotInfo(UnitPresent unitPresent, IncompleteRobotInfo sender, int roundNumber){
         this(unitPresent.getTeam(), unitPresent.isTrueSense(), unitPresent.getRobotType(), null,
-                sender.getLastSeenMapLocation().isPresent()
-                        ? unitPresent.getRelativeLocation().applyTo(sender.getLastSeenMapLocation().get())
+                sender.lastSeenMapLocation != null
+                        ? unitPresent.getRelativeLocation().applyTo(sender.lastSeenMapLocation)
                         : null
                 , roundNumber, unitPresent.getInfluence());
     }
@@ -46,8 +44,8 @@ public class IncompleteRobotInfo{
                 roundNumber,robotInfo.getConviction());
     }
 
-    IncompleteRobotInfo(Team team, boolean trueSense, RobotType robotType, Integer robotId,
-                        MapLocation mapLocation, int roundNumber, Integer conviction){
+    IncompleteRobotInfo(Team team, boolean trueSense, RobotType robotType, @Nullable Integer robotId,
+                        @Nullable MapLocation mapLocation, int roundNumber, @Nullable Integer conviction){
         this.team = team;
         this.couldBeSlanderer = (!trueSense) && (robotType == RobotType.POLITICIAN);
         this.robotType = robotType;
@@ -55,41 +53,6 @@ public class IncompleteRobotInfo{
         this.lastSeenMapLocation = mapLocation;
         this.lastSeenRoundNumber = roundNumber;
         this.lastSeenConviction = conviction;
-    }
-
-    public Optional<Integer> getRobotId(){
-        return Optional.ofNullable(robotId);
-    }
-    public Optional<MapLocation> getLastSeenMapLocation(){
-        return Optional.ofNullable(lastSeenMapLocation);
-    }
-    public Optional<Integer> getLastSeenRoundNumber(){
-        return Optional.ofNullable(lastSeenRoundNumber);
-    }
-    public Optional<Integer> getLastSeenConviction(){
-        return Optional.ofNullable(lastSeenConviction);
-    }
-    public RobotType getRobotType(){
-        return robotType;
-    }
-    public boolean getCouldBeSlanderer(){
-        return couldBeSlanderer;
-    }
-    public Team getTeam() {
-        return team;
-    }
-
-    public void setLastSeenConviction(Integer lastSeenConviction) {
-        this.lastSeenConviction = lastSeenConviction;
-    }
-    public void setLastSeenMapLocation(MapLocation lastSeenMapLocation) {
-        this.lastSeenMapLocation = lastSeenMapLocation;
-    }
-    public void setLastSeenRoundNumber(Integer lastSeenRoundNumber) {
-        this.lastSeenRoundNumber = lastSeenRoundNumber;
-    }
-    public void setRobotId(Integer robotId) {
-        this.robotId = robotId;
     }
 
     private static boolean couldBeSameType(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
@@ -105,8 +68,8 @@ public class IncompleteRobotInfo{
     }
 
     private static boolean couldBeIDMatch(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
-        if(r1.getRobotId().isPresent() && r2.getRobotId().isPresent()){
-            return r1.getRobotId().get().equals(r2.getRobotId().get());
+        if(r1.robotId != null && r2.robotId != null){
+            return r1.robotId.equals(r2.robotId);
         }else{
             return true;
         }
@@ -115,20 +78,26 @@ public class IncompleteRobotInfo{
     public double isRobotConfidence(IncompleteRobotInfo robotInfo){
         if(!couldBeSameType(this, robotInfo) || !couldBeIDMatch(this, robotInfo)){
             return 0.0;
+        }else if(robotId != null && robotInfo.robotId != null && robotId.intValue() == robotInfo.robotId.intValue()) {
+            return 1.0;
         }else{
-            assert getLastSeenRoundNumber().isPresent();
-            assert robotInfo.getLastSeenRoundNumber().isPresent();
-            assert getLastSeenMapLocation().isPresent();
-            assert robotInfo.getLastSeenMapLocation().isPresent();
-            int earlierRoundNum = getLastSeenRoundNumber().get();
-            int laterRoundNum = robotInfo.getLastSeenRoundNumber().get();
-            MapLocation earlierMapLocation = getLastSeenMapLocation().get();
-            MapLocation laterMapLocation = robotInfo.getLastSeenMapLocation().get();
+            assert lastSeenRoundNumber != null;
+            assert robotInfo.lastSeenRoundNumber != null;
+            assert lastSeenMapLocation != null;
+            assert robotInfo.lastSeenMapLocation != null;
+            int earlierRoundNum = lastSeenRoundNumber;
+            int laterRoundNum = robotInfo.lastSeenRoundNumber;
+            MapLocation earlierMapLocation = lastSeenMapLocation;
+            MapLocation laterMapLocation = robotInfo.lastSeenMapLocation;
             int roundNumDifference = laterRoundNum - earlierRoundNum;
             assert roundNumDifference >= 0;
             int distance = Math.max(Math.abs(earlierMapLocation.x-laterMapLocation.x),
                     Math.abs(earlierMapLocation.y-laterMapLocation.y));
-            return Math.min(1.0, ((double) roundNumDifference)/distance);
+            if(roundNumDifference > distance){
+                return 0.925 - 0.05*((double)distance/roundNumDifference);
+            }else{
+                return 0;
+            }
         }
     }
 
@@ -137,26 +106,26 @@ public class IncompleteRobotInfo{
             this.couldBeSlanderer = false;
             this.robotType = RobotType.SLANDERER;
         }
-        if(!getRobotId().isPresent() && robotInfo.getRobotId().isPresent()){
-            robotId = robotInfo.getRobotId().get();
+        if(robotId == null && robotInfo.robotId != null){
+            robotId = robotInfo.robotId;
         }
-        assert robotInfo.getLastSeenRoundNumber().isPresent();
-        assert getLastSeenRoundNumber().isPresent();
-        int otherRoundNumber = robotInfo.getLastSeenRoundNumber().get();
-        if(otherRoundNumber > getLastSeenRoundNumber().get()){
+        assert robotInfo.lastSeenRoundNumber != null;
+        assert lastSeenRoundNumber != null;
+        int otherRoundNumber = robotInfo.lastSeenRoundNumber;
+        if(otherRoundNumber > lastSeenRoundNumber){
             lastSeenRoundNumber = otherRoundNumber;
-            if(robotInfo.getLastSeenMapLocation().isPresent()) {
-                lastSeenMapLocation = robotInfo.getLastSeenMapLocation().get();
+            if(robotInfo.lastSeenMapLocation != null) {
+                lastSeenMapLocation = robotInfo.lastSeenMapLocation;
             }
-            if(robotInfo.getLastSeenConviction().isPresent()){
-                lastSeenConviction = robotInfo.getLastSeenConviction().get();
+            if(robotInfo.lastSeenConviction != null){
+                lastSeenConviction = robotInfo.lastSeenConviction;
             }
         }
     }
 
     public void update(SelfStatus selfStatus){
-        if(getLastSeenMapLocation().isPresent()) {
-            this.lastSeenMapLocation = selfStatus.getRelativeLocation().applyTo(getLastSeenMapLocation().get());
+        if(lastSeenMapLocation != null) {
+            this.lastSeenMapLocation = selfStatus.getRelativeLocation().applyTo(lastSeenMapLocation);
         }
         this.lastSeenConviction = selfStatus.getConviction();
     }

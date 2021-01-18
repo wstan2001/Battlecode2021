@@ -1,2 +1,5 @@
-package turtleplayer.customstructures;public class StringSet {
+package turtleplayer.customstructures;
+
+public class StringSet {
+
 }

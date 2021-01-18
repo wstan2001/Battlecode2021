@@ -4,6 +4,9 @@ import battlecode.common.Clock;
 import battlecode.common.GameActionException;
 import battlecode.common.RobotController;
 
+import static turtleplayer.Utilities.randomDirection;
+import static turtleplayer.Utilities.tryMove;
+
 public strictfp class Slanderer {
     private static RobotController rc;
     private static AwarenessModule aw;
@@ -12,7 +15,7 @@ public strictfp class Slanderer {
         Slanderer.aw = aw;
     }
     public static void processTurn() throws GameActionException {
-        //if (tryMove(randomDirection()))
-        //    System.out.println("I moved!");
+        if (tryMove(randomDirection(),rc))
+            System.out.println("I moved!");
     }
 }

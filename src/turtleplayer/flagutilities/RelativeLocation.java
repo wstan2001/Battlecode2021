@@ -1,7 +1,7 @@
 package turtleplayer.flagutilities;
 
 import battlecode.common.MapLocation;
-import com.sun.istack.internal.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -28,6 +28,10 @@ public strictfp class RelativeLocation {
         }else {
             return new MapLocation(mapLocation.x + x, mapLocation.y + y);
         }
+    }
+
+    public int radiusSquared(){
+        return x*x + y*y;
     }
 
     @Override
