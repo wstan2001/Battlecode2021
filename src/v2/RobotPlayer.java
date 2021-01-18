@@ -509,7 +509,7 @@ public strictfp class RobotPlayer {
         if(!previousRoundSkipped) {
             if (hasWonBid) {
                 //System.out.println("Won, start with: "+ aggression);
-                aggression *= getAggressionDecayRate(roundNumber, proportionVotesNecessary);
+                aggression *= Math.max(1.0,getAggressionDecayRate(roundNumber, proportionVotesNecessary));
                 //System.out.println("Won, end with: "+ aggression);
             } else {
                 avgLosingBid = (avgLosingBid * ((double) numLosingBids) / (numLosingBids + 1.0)) + previousBidAmount / (numLosingBids + 1.0);
@@ -1029,6 +1029,9 @@ public strictfp class RobotPlayer {
                                 }
                             }
                         }else{
+                            if(robotInfo.location.equals(targetLoc)){
+                                effectiveness += convictionUseOnEach;
+                            }
                             if(robotInfo.conviction < convictionUseOnEach){
                                 effectiveness += 50;
                             }
