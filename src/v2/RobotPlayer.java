@@ -1,7 +1,7 @@
 package v2;
 import battlecode.common.*;
+import turtleplayer.EnlightenmentCenter;
 
-import java.util.List;
 import java.util.Random;
 import java.lang.Math;
 import java.util.*;
@@ -932,6 +932,20 @@ public strictfp class RobotPlayer {
         else
             moveDir(directions[generalDir]);
     }
+    
+    static int radiusToIndex(int radiusSquared){
+        switch (radiusSquared){
+            case 1: return 0;
+            case 2: return 1;
+            case 4: return 2;
+            case 5: return 3;
+            case 8: return 4;
+            case 9: return 5;
+            default: System.out.println("ERROR: BAD RADIUS:" + radiusSquared); return 0;
+        }
+    }
+    
+    static int[] possibleSmallerRadii = new int[]{1,2,4,5,8,9};
 
     static void runTroop() throws GameActionException {
         int actionRadius = rc.getType().actionRadiusSquared;
@@ -951,22 +965,86 @@ public strictfp class RobotPlayer {
             wandering = true;
         } 
         if (rc.getInfluence() > 10) {
+            int empowerInfluence = rc.getInfluence() - 10;
             boolean shouldEmpower = false;
-            RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
-            RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
-            if (neutralEC.length > 0) {
-                System.out.println("Found neutral EC!");
+            MapLocation currentLocation = rc.getLocation();
+            RobotInfo[][] sortedByRadius = new RobotInfo[6][8];
+            int[] sortedByRadiusLengths = new int[]{0,0,0,0,0,0};
+            RobotInfo[] actionRadiusNearbyRobots = rc.senseNearbyRobots(actionRadius);
+            int indx, length;
+            for(RobotInfo robotInfo : actionRadiusNearbyRobots){
+                //System.out.println(robotInfo.location.x + ", "+ robotInfo.location.y + " : " + robotInfo.location.distanceSquaredTo(currentLocation));
+                indx = radiusToIndex(robotInfo.location.distanceSquaredTo(currentLocation));
+                length = sortedByRadiusLengths[indx];
+                sortedByRadius[indx][length] = robotInfo;
+                sortedByRadiusLengths[indx]++;
             }
+            int totalnum = 0;
+            int convictionUseOnEach;
+            int effectiveness;
+            int bestEffectiveness = (empowerInfluence*3)/4;
+            int bestActionRadius = -1;
+            for (int i = 0; i < 6; i++) {
+                if(sortedByRadiusLengths[i] == 0){
+                    continue;
+                }
+                totalnum += sortedByRadiusLengths[i];
+                convictionUseOnEach = totalnum > 0 ? (empowerInfluence )/ totalnum : 0;
+                effectiveness = 0;
+                for (int j = 0; j <= i; j++) {
+                    int arrayLength = sortedByRadiusLengths[j];
+                    for (int k = 0; k < arrayLength; k++) {
+                        RobotInfo robotInfo = sortedByRadius[j][k];
+                        if(robotInfo.team == ally){
+                            if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
+                                effectiveness += convictionUseOnEach;
+                            }
+                        }else if(robotInfo.team == enemy){
+                            if (robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
+                                if (robotInfo.conviction < convictionUseOnEach) {
+                                    effectiveness += 100;
+                                }
+                                effectiveness += convictionUseOnEach;
+                            } else {
+                                if (robotInfo.conviction < convictionUseOnEach) {
+                                    effectiveness += robotInfo.conviction;
+                                    effectiveness += 3;
+                                } else {
+                                    effectiveness += convictionUseOnEach / 2;
+                                }
+                            }
+                        }else{
+                            if(robotInfo.conviction < convictionUseOnEach){
+                                effectiveness += 50;
+                            }
+                        }
+                    }
+                }
+                if(effectiveness > bestEffectiveness){
+                    bestEffectiveness = effectiveness;
+                    bestActionRadius = i;
+                }
+            }
+            if(bestActionRadius > -1 && rc.canEmpower(bestActionRadius)){
+                rc.empower(bestActionRadius);
+            }
+
+            //RobotInfo[] attackable = rc.senseNearbyRobots(actionRadius, enemy);
+            //RobotInfo[] neutralEC = rc.senseNearbyRobots(actionRadius, Team.NEUTRAL);
+
+//            if (neutralEC.length > 0) {
+//                System.out.println("Found neutral EC!");
+//            }
             //it might be worth it for a troop who is targeting a neutral EC to not get "distracted" and empower along the way
-            for (int i = 0; i < attackable.length; i++) {
-                if (attackable[i].getType() == RobotType.ENLIGHTENMENT_CENTER)
-                    shouldEmpower = true;
-            }
-            if (attackable.length > 3 || neutralEC.length > 0)
-                shouldEmpower = true;
-            if (shouldEmpower && rc.canEmpower(actionRadius)) {
-                rc.empower(actionRadius);                
-            }
+//            for (int i = 0; i < attackable.length; i++) {
+//                if (attackable[i].getType() == RobotType.ENLIGHTENMENT_CENTER)
+//                    shouldEmpower = true;
+//            }
+//            if (attackable.length > 3 || neutralEC.length > 0)
+//                shouldEmpower = true;
+//            if (shouldEmpower && rc.canEmpower(actionRadius)) {
+//                rc.empower(actionRadius);
+//            }
         }
         if (generalDir != -1) { 
             if (wandering)
