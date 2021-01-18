@@ -95,7 +95,7 @@ public strictfp class RobotPlayer {
     {
     	switch(op)
     	{
-    	    case MOVE: return 0;
+    	    case MOVE: return 0; 
     	    case SCOUT: return 1;
             case TROOP: return 2;                   //IMPORTANT! When initializing a troop that goes to a target location, make sure its last 8 bits of extra data is > 7
             case ENEMYEC: return 3;                 //data should contain floor of (enemy EC's influence / 20)
@@ -342,9 +342,7 @@ public strictfp class RobotPlayer {
                 }
             }
             else if (toBuild == RobotType.SLANDERER) {
-                int slandInfl = (int) (6 * Math.log(rc.getInfluence()));
-                slandInfl /= 21;
-                slandInfl *= 21;
+                int slandInfl = (int) (3 * Math.sqrt(rc.getInfluence()));
                 if (slandInfl < 21) {
                     //build muck instead
                     toBuild = RobotType.MUCKRAKER;
