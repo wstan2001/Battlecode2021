@@ -316,21 +316,21 @@ public strictfp class RobotPlayer {
         else if (phase.equals( "Mid") ){
             toBuild = midSpawnRobot();
             if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
-                toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+                toBuild = Math.random() < 0.5 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
         }
 
-        if (rc.isReady() && rng.nextDouble() < Math.pow(rc.getInfluence(), 0.3) / 10.0) {                 
+        if (rc.isReady() && rng.nextDouble() < Math.pow(rc.getInfluence(), 0.2) / 10.0) {                 
             //don't remove the above if! Else instructions will get all mixed up bc we spawn too frequently
             //focus on growth; we can afford to spawn more when our influence is higher
             int randDirection = rng.nextInt(8);             //we will use this if we give robot a random direction
             if (toBuild == RobotType.POLITICIAN) {
                 influence = rc.getInfluence() / 10;
-                if (influence < 13)
+                if (influence < 16)
                     influence = 1;
-                int poliType = rng.nextInt(2);
+                double poliType = rng.nextDouble();
                 if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
                     rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
-                if (poliType == 0 && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1 && rc.getInfluence() > 90) {
+                if (poliType < 0.7 && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1 && rc.getInfluence() > 140) {
                     //try to attack random neutral EC
                     if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9))) { //op, xcoord, ycoord, of location to seek
                         rc.setFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9));
@@ -362,8 +362,8 @@ public strictfp class RobotPlayer {
                 //begin by assuming we move in random direction
                 if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
                     rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
-                int temp = rng.nextInt(2);
-                if (temp == 0) {
+                double temp = rng.nextDouble();
+                if (temp < 0.8) {
                     //go to enemyEC
                     int numFoundEnemy = 0;
                     for (int i = 0; i < enemyECLoc.length; i++) {
