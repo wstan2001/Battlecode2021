@@ -773,19 +773,58 @@ public strictfp class RobotPlayer {
             countdown -= 1;
         }
         if (rc.getInfluence() > 10 && countdown <= 0) {
+            int sensorRadius = rc.getType().sensorRadiusSquared;
             int empowerInfluence = rc.getInfluence() - 10;
             boolean shouldEmpower = false;
             MapLocation currentLocation = rc.getLocation();
             RobotInfo[][] sortedByRadius = new RobotInfo[6][8];
             int[] sortedByRadiusLengths = new int[]{0,0,0,0,0,0};
+            double[][] allyECSurroundedBonus = new double[6][8];
             RobotInfo[] actionRadiusNearbyRobots = rc.senseNearbyRobots(actionRadius);
+            int[] allyECSurroundedValue = new int[10];
             int indx, length;
+            MapLocation[] allyECLocations = new MapLocation[10];
+            int numAllyECLocations = 0;
+            for(RobotInfo robotInfo : actionRadiusNearbyRobots){
+                if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER && robotInfo.team == ally){
+                    allyECLocations[numAllyECLocations] = robotInfo.location;
+                    numAllyECLocations++;
+                    for(Direction direction: directions){
+                        MapLocation adjacent = robotInfo.location.add(direction);
+                        if(adjacent.distanceSquaredTo(currentLocation) <= sensorRadius){
+                            if(!rc.canSenseLocation(adjacent)){
+                                allyECSurroundedValue[numAllyECLocations] += 1;
+                            }
+                        }
+                    }
+                }
+            }
             for(RobotInfo robotInfo : actionRadiusNearbyRobots){
                 //System.out.println(robotInfo.location.x + ", "+ robotInfo.location.y + " : " + robotInfo.location.distanceSquaredTo(currentLocation));
                 indx = radiusToIndex(robotInfo.location.distanceSquaredTo(currentLocation));
                 length = sortedByRadiusLengths[indx];
                 sortedByRadius[indx][length] = robotInfo;
                 sortedByRadiusLengths[indx]++;
+                for (int i = 0; i < numAllyECLocations; i++) {
+                    int distanceSquared = allyECLocations[i].distanceSquaredTo(robotInfo.location);
+                    if(distanceSquared <= 2){
+                        allyECSurroundedValue[i] += 1;
+                    }
+                }
+            }
+            for (int i = 0; i < 6; i++) {
+                length = sortedByRadiusLengths[i];
+                for (int j = 0; j < length; j++) {
+                    RobotInfo robotInfo = sortedByRadius[i][j];
+                    if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER || robotInfo.team == enemy){
+                        for (int k = 0; k < numAllyECLocations; k++) {
+                            int distanceSquared = allyECLocations[k].distanceSquaredTo(robotInfo.location);
+                            if(distanceSquared <= 2){
+                                allyECSurroundedBonus[i][j] += Math.pow(allyECSurroundedValue[k],3)/27.0;
+                            }
+                        }
+                    }
+                }
             }
             int totalnum = 0;
             double convictionUseOnEach;
@@ -798,6 +837,9 @@ public strictfp class RobotPlayer {
                     continue;
                 }
                 totalnum += sortedByRadiusLengths[i];
+                if(totalnum == 0){
+                    continue;
+                }
                 convictionUseOnEach = totalnum > 0 ? ((double)empowerInfluence )/ totalnum : 0;
                 effectiveness = 0;
                 for (int j = 0; j <= i; j++) {
@@ -816,7 +858,10 @@ public strictfp class RobotPlayer {
                                 effectiveness += convictionUseOnEach;
                             } else {
                                 if (robotInfo.conviction < convictionUseOnEach) {
-                                    effectiveness += empowerInfluence * 0.1;            //might be overkill, but treat it as kill bonus
+                                    //effectiveness += empowerInfluence * 0.1;            //might be overkill, but treat it as kill bonus
+                                    effectiveness += robotInfo.conviction*2;
+                                    System.out.println("Ally EC Surrounded Bonus: " + robotInfo.ID+ ", "+ allyECSurroundedBonus[j][k]);
+                                    effectiveness += allyECSurroundedBonus[j][k];
                                 } else {
                                     effectiveness += convictionUseOnEach*1.2;
                                 }
