@@ -86,6 +86,8 @@ public strictfp class RobotPlayer {
     static MapLocation targetLoc = new MapLocation(-1,-1);
     static String type = "None";
     static boolean wandering = false;
+    static int countdown = -1;          //lets a troop get as close as possible to target location b4 exploding
+                                        //troop will only detonate if countdown <= 0 (countdown will be initialized to 3)
 
     //Muckraker state vars
     static int curTarget = -1;
@@ -164,8 +166,10 @@ public strictfp class RobotPlayer {
             case SCOUT: generalDir = instrData(instr); type = "Scout"; break;
             case TROOP: 
                 type = "Troop";
-                if (instrData(instr) > 7)       //this troop has a target location
+                if (instrData(instr) > 7) {      //this troop has a target location
                     targetLoc = new MapLocation(instrX(instr), instrY(instr));
+                    countdown = 3;
+                }
                 else 
                     generalDir = instrData(instr);
                 break;
@@ -199,8 +203,11 @@ public strictfp class RobotPlayer {
                 dy -= 128;
         }
 
-        if (Math.abs(dx) >= 64 || Math.abs(dy) >= 64) 
+        if (Math.abs(dx) >= 64 || Math.abs(dy) >= 64) {
             System.out.println("Something went very wrong when decoding coordinates!");
+            System.out.println(loc);
+            System.out.println("dx: " + dx + " dy: " + dy);
+        }
         
         return new MapLocation(rc.getLocation().x + dx, rc.getLocation().y + dy);
     }
@@ -283,6 +290,8 @@ public strictfp class RobotPlayer {
 
     static void runEnlightenmentCenter() throws GameActionException {
         RobotType toBuild = RobotType.MUCKRAKER;
+        String unitType = "None";
+        MapLocation unitTarget = new MapLocation(-1, -1);
         boolean canBuildSlanderer = true;
         Direction buildDir;
         int influence = 1;
@@ -294,50 +303,108 @@ public strictfp class RobotPlayer {
         
         int sensorRadius = rc.getType().sensorRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
-            if (robot.type == RobotType.MUCKRAKER) {
+            if (robot.type == RobotType.MUCKRAKER || robot.type == RobotType.ENLIGHTENMENT_CENTER) {
                 //if there are muckrakers nearby, don't build slanderers!
                 canBuildSlanderer = false;
                 break;
             }
         }
 
-        if (phase.equals("Early")) {
-            if (turnCount < 15) 
-                toBuild = RobotType.SLANDERER;          //start w/ a couple slands
+        RobotInfo[] closeEnemy = rc.senseNearbyRobots(9, enemy);
+        int enemyCount = 0;
+        for (RobotInfo rinfo : closeEnemy) {
+            enemyCount += 1;
+        }
+
+        RobotInfo[] closeDefender = rc.senseNearbyRobots(9, ally);
+        int defenderCount = 0;
+        for (RobotInfo rinfo : closeDefender) {
+            if (rinfo.getType() == RobotType.POLITICIAN && rinfo.getConviction() >= 17) {
+                defenderCount += 1;
+            }
+        }
+
+        //go through a few conditional checks b4 spawning randomly
+        //decide upon spawn types and parameters here
+        boolean shouldSpawn = true;
+        if (rc.getRoundNum() < 15) {
+            toBuild = RobotType.SLANDERER;
+            int slandInfl = (int) (0.95 * rc.getInfluence());
+            if (slandInfl < 21 || !canBuildSlanderer) {
+                //build muck instead
+                toBuild = RobotType.MUCKRAKER;
+                unitType = "Random";
+                influence = 1;
+            }
             else
+            {
+                for (int inf : goodSlandererInfluences)
+                    if (inf < slandInfl)
+                        influence = Math.max(influence, inf);
+                influence = Math.max(21, influence);
+            }
+        }
+        else if (enemyCount > 4 && defenderCount < 2) {
+            toBuild = RobotType.POLITICIAN;
+            unitType = "Random";
+            influence = Math.max(17, rc.getInfluence() / 10);
+        }
+        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.2) / 10.0) {
+            //randomized spawn code
+            if (phase.equals("Early")) {
                 toBuild = earlySpawnRobot();
 
-            if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
-                toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+                if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
+                    toBuild = Math.random() < 0.25 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
 
-            if (turnCount > 50)
-                phase = "Mid";
-        }
-        else if (phase.equals( "Mid") ){
-            toBuild = midSpawnRobot();
-            if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
-                toBuild = Math.random() < 0.5 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
-        }
+                if (turnCount > 50)
+                    phase = "Mid";
+            }
+            else if (phase.equals( "Mid") ){
+                toBuild = midSpawnRobot();
+                if(!canBuildSlanderer && toBuild == RobotType.SLANDERER)
+                    toBuild = Math.random() < 0.5 ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+            }
 
-        if (rc.isReady() && rng.nextDouble() < Math.pow(rc.getInfluence(), 0.2) / 10.0) {                 
-            //don't remove the above if! Else instructions will get all mixed up bc we spawn too frequently
-            //focus on growth; we can afford to spawn more when our influence is higher
-            int randDirection = rng.nextInt(8);             //we will use this if we give robot a random direction
             if (toBuild == RobotType.POLITICIAN) {
-                influence = rc.getInfluence() / 10;
-                if (influence < 16)
+                if (rng.nextDouble() < 0.7  && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1 && rc.getInfluence() > 140) {
+                    unitType = "Targeting";
+                    unitTarget = targetNeutralLoc;
+                    influence = rc.getInfluence() / 3;
+                }
+                else {
+                    unitType = "Random";
+                    influence = rc.getInfluence() / 10;
+                    if (influence < 17)
+                        influence = 0;
+                }
+            }
+            else if (toBuild == RobotType.MUCKRAKER) {
+                int numFoundEnemy = 0;
+                for (int i = 0; i < enemyECLoc.length; i++) {
+                    if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1)
+                        numFoundEnemy += 1;
+                }
+                if (numFoundEnemy > 0 && rng.nextDouble() < 0.7) {
+                    //send muck to enemy EC
+                    unitType = "Targeting";
                     influence = 1;
-                double poliType = rng.nextDouble();
-                if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
-                    rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
-                if (poliType < 0.7 && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1 && rc.getInfluence() > 140) {
-                    //try to attack random neutral EC
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9))) { //op, xcoord, ycoord, of location to seek
-                        rc.setFlag(encodeInstruction(OPCODE.TROOP, targetNeutralLoc.x, targetNeutralLoc.y, 9));
-                        influence = rc.getInfluence() / 3;
-                        MapLocation absLoc = getAbsCoords(targetNeutralLoc);
-                        System.out.println("Sending troop to neutral EC at " + absLoc.x + " " + absLoc.y);
+                    int temp = rng.nextInt(numFoundEnemy);
+                    for (int i = 0; i < enemyECLoc.length; i++) {
+                        if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
+                            if (temp == 0) {
+                                //send muckracker to this location
+                                unitTarget = enemyECLoc[i];
+                                break;
+                            }
+                            else
+                                temp -= 1;
+                        }
                     }
+                }
+                else {
+                    unitType = "Random";
+                    influence = 1;
                 }
             }
             else if (toBuild == RobotType.SLANDERER) {
@@ -345,8 +412,7 @@ public strictfp class RobotPlayer {
                 if (slandInfl < 21) {
                     //build muck instead
                     toBuild = RobotType.MUCKRAKER;
-                    if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
-                        rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                    unitType = "Random";
                     influence = 1;
                 }
                 else
@@ -354,42 +420,37 @@ public strictfp class RobotPlayer {
                     for (int inf : goodSlandererInfluences)
                         if (inf < slandInfl)
                             influence = Math.max(influence, inf);
-                    influence = Math.max(21, slandInfl);
+                    influence = Math.max(21, influence);
                 }
             }
-            else if (toBuild == RobotType.MUCKRAKER) {
-                influence = 1;
-                //begin by assuming we move in random direction
-                if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
-                    rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
-                double temp = rng.nextDouble();
-                if (temp < 0.8) {
-                    //go to enemyEC
-                    int numFoundEnemy = 0;
-                    for (int i = 0; i < enemyECLoc.length; i++) {
-                        if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1)
-                            numFoundEnemy += 1;
-                    }
-                    if (numFoundEnemy > 0) {
-                        temp = rng.nextInt(numFoundEnemy);
-                        for (int i = 0; i < enemyECLoc.length; i++) {
-                            if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
-                                if (temp == 0) {
-                                    //send muckracker to this location
-                                    MapLocation loc = enemyECLoc[i];
-                                    if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0))) //op, xcoord, ycoord of location to go to
-                                        rc.setFlag(encodeInstruction(OPCODE.MOVE, loc.x, loc.y, 0));
-                                    break;
-                                }
-                                else
-                                    temp -= 1;
-                            }
-                        }
-                    }
-                }
-            }
+        }
+        else {
+            shouldSpawn = false;
+        }
 
-            if (toBuild == RobotType.SLANDERER) {         //try to find optimal slander spawn direction
+
+        //execute spawning code here
+        if (rc.isReady() && shouldSpawn) {                 
+            //don't remove the above if! Else instructions will get all mixed up bc we spawn too frequently
+            //focus on growth; we can afford to spawn more when our influence is higher
+            int randDirection = rng.nextInt(8);             //we will use this if we give robot a random direction
+            if (toBuild == RobotType.POLITICIAN) {
+                if (unitType.equals("Targeting")) {
+                    //try to attack random neutral EC
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, unitTarget.x, unitTarget.y, 9))) { //op, xcoord, ycoord, of location to seek
+                        rc.setFlag(encodeInstruction(OPCODE.TROOP, unitTarget.x, unitTarget.y, 9));
+                        MapLocation absLoc = getAbsCoords(unitTarget);
+                        System.out.println("Sending troop to neutral EC at " + absLoc.x + " " + absLoc.y);
+                    }
+                }
+                else {
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection))) //op, xcoord, ycoord, direction to patrol
+                        rc.setFlag(encodeInstruction(OPCODE.TROOP, 0, 0, randDirection));
+                }
+            }
+            else if (toBuild == RobotType.SLANDERER) {
+                //don't need to broadcast flag codes to sland
+                //instead we try to find optimal spawn location
                 MapLocation centroid = new MapLocation(0, 0);         //find centroid of enemy ECs
                 int numEnemy = 0;
                 for (MapLocation loc : enemyECLoc) {
@@ -409,6 +470,18 @@ public strictfp class RobotPlayer {
                     randDirection = Math.max(randDirection, 0);           //in the rare case that offset somehow is Direction.CENTER
                 }
             }
+            else if (toBuild == RobotType.MUCKRAKER) {
+                if (unitType.equals("Targeting")) {
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.MOVE, unitTarget.x, unitTarget.y, 0))) //op, xcoord, ycoord of location to go to
+                        rc.setFlag(encodeInstruction(OPCODE.MOVE, unitTarget.x, unitTarget.y, 0));
+                }
+                else {
+                    if(rc.canSetFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection))) //op, xcoord, ycoord, direction to travel
+                        rc.setFlag(encodeInstruction(OPCODE.SCOUT, 0, 0, randDirection));
+                }
+            }
+
+
             for (int i = 0; i < directions.length; i++) {
                 Direction dir = directions[(dirHelper[i] + randDirection + 8) % 8];
                 if (rc.canBuildRobot(toBuild, dir, influence)) {
@@ -470,10 +543,10 @@ public strictfp class RobotPlayer {
                 previousRoundSkipped = true;
                 bidAmount = 0;
             } 
-            else if (aggression > 0.3 * influenceLeft) {
+            else if (aggression > 0.1 * influenceLeft) {
                 previousRoundSkipped = true;
                 bidAmount = 0;
-                aggression *= 0.8;
+                //need to build up more influence before bidding again
             }
             else {
                 previousRoundSkipped =false;
@@ -690,11 +763,16 @@ public strictfp class RobotPlayer {
         rc.setFlag(0);              //don't send outdated info
         scanForEC();
 
-        if (!wandering && rng.nextDouble() < 0.01) {
-            //any troop has a 1% chance of beginning to move in random directions
+        if (!wandering && rng.nextDouble() < 0.003) {
+            //any troop has a 0.3% chance of beginning to move in random directions
             wandering = true;
         } 
-        if (rc.getInfluence() > 10) {
+
+        if (!targetLoc.equals(new MapLocation(-1, -1)) && rc.getLocation().distanceSquaredTo(getAbsCoords(targetLoc)) <= 9) {
+            //update the countdown
+            countdown -= 1;
+        }
+        if (rc.getInfluence() > 10 && countdown <= 0) {
             int empowerInfluence = rc.getInfluence() - 10;
             boolean shouldEmpower = false;
             MapLocation currentLocation = rc.getLocation();
@@ -712,7 +790,8 @@ public strictfp class RobotPlayer {
             int totalnum = 0;
             double convictionUseOnEach;
             double effectiveness;
-            double bestEffectiveness = (sortedByRadiusLengths[0] == 4 && sortedByRadiusLengths[1] == 4)?empowerInfluence*0.3 : empowerInfluence*0.8;
+            //double bestEffectiveness = (sortedByRadiusLengths[0] == 4 && sortedByRadiusLengths[1] == 4)?empowerInfluence*0.3 : empowerInfluence*0.8;
+            double bestEffectiveness = empowerInfluence*0.5;
             int bestActionRadius = -1;
             for (int i = 0; i < 6; i++) {
                 if(sortedByRadiusLengths[i] == 0){
@@ -732,14 +811,14 @@ public strictfp class RobotPlayer {
                         }else if(robotInfo.team == enemy){
                             if (robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
                                 if (robotInfo.conviction < convictionUseOnEach) {
-                                    effectiveness += 100;
+                                    effectiveness += empowerInfluence * 0.5;        //automatically empower
                                 }
                                 effectiveness += convictionUseOnEach;
                             } else {
                                 if (robotInfo.conviction < convictionUseOnEach) {
-                                    effectiveness += robotInfo.conviction*3;
+                                    effectiveness += empowerInfluence * 0.1;            //might be overkill, but treat it as kill bonus
                                 } else {
-                                    effectiveness += convictionUseOnEach*1.4;
+                                    effectiveness += convictionUseOnEach*1.2;
                                 }
                             }
                         }else{
@@ -748,7 +827,7 @@ public strictfp class RobotPlayer {
                             }
                             effectiveness += convictionUseOnEach*2.0;
                             if(robotInfo.conviction < convictionUseOnEach){
-                                effectiveness += 50;
+                                effectiveness += empowerInfluence * 0.5;        //automatically empower
                             }
                         }
                     }
@@ -831,8 +910,8 @@ public strictfp class RobotPlayer {
         int sensorRadius = rc.getType().sensorRadiusSquared;
         MapLocation curLoc = rc.getLocation();
 
-        if (!wandering && rng.nextDouble() < 0.01) {
-            //any muck has a 1% chance of beginning to move in random directions
+        if (!wandering && rng.nextDouble() < 0.003) {
+            //any muck has a 0.3% chance of beginning to move in random directions
             wandering = true;
         } 
 
@@ -944,7 +1023,7 @@ public strictfp class RobotPlayer {
         double prob = Math.random();
         if(prob < 0.3){
             return RobotType.SLANDERER;
-        }else if(prob < 0.8){
+        }else if(prob < 0.9){
             return RobotType.MUCKRAKER;
         }else{
             return RobotType.POLITICIAN;
