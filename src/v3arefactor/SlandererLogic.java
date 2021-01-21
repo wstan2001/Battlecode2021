@@ -3,7 +3,7 @@ package v3arefactor;
 import battlecode.common.*;
 
 import static v3arefactor.Flag.encodeInstruction;
-import static v3arefactor.Pathing.directions;
+import static v3arefactor.Pathing.*;
 import static v3arefactor.RobotPlayer.*;
 
 public class SlandererLogic {
