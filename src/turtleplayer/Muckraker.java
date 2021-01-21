@@ -1,6 +1,9 @@
 package turtleplayer;
 
-import battlecode.common.*;
+import battlecode.common.GameActionException;
+import battlecode.common.RobotController;
+import battlecode.common.RobotInfo;
+import battlecode.common.Team;
 
 import static turtleplayer.Utilities.randomDirection;
 import static turtleplayer.Utilities.tryMove;

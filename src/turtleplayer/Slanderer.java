@@ -1,6 +1,5 @@
 package turtleplayer;
 
-import battlecode.common.Clock;
 import battlecode.common.GameActionException;
 import battlecode.common.RobotController;
 

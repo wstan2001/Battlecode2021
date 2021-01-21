@@ -1,49 +1,39 @@
 package turtleplayer.flagutilities;
 
-import battlecode.common.RobotType;
+import battlecode.common.MapLocation;
 
 import java.util.Objects;
+
+import static turtleplayer.Utilities.LOG_BASE;
+import static turtleplayer.Utilities.bound;
 
 /*
     implementation of FlagMessage for a flag signalling the robot's status
  */
 public strictfp class SelfStatus implements FlagMessage{
 
-    private final RelativeLocation relativeLocation;
-    private final int scaledConviction;
+    public final EncodedMapLocation encodedMapLocation;
+    public final int scaledConviction;
 
     private static final int SCALE_FACTOR = 16;
 
-    public SelfStatus(RelativeLocation relativeLocation, int conviction){
-        this.relativeLocation = relativeLocation;
-        this.scaledConviction = conviction / SCALE_FACTOR;
-    }
-
-    private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00900000;
-
-    public static boolean hasCorrectPrefix(int flagCode){
-        return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
+    public SelfStatus(MapLocation mapLocation, int conviction){
+        this.encodedMapLocation = new EncodedMapLocation(mapLocation);
+        this.scaledConviction = bound((int)(Math.log((double)conviction)/LOG_BASE),0,15);
     }
 
     public SelfStatus(int flagCode){
-        this.relativeLocation = new RelativeLocation(
-                FlagUtilities.getPartOfFlag(flagCode,6,0)-64,
-                FlagUtilities.getPartOfFlag(flagCode,13,7)-64);
+        this.encodedMapLocation = new EncodedMapLocation(
+                FlagUtilities.getPartOfFlag(flagCode,6,0),
+                FlagUtilities.getPartOfFlag(flagCode,13,7));
         this.scaledConviction = FlagUtilities.getPartOfFlag(flagCode,19,14);
-    }
-    public RelativeLocation getRelativeLocation() {
-        return relativeLocation;
-    }
-    public int getConviction(){
-        return scaledConviction*SCALE_FACTOR;
     }
 
     public int getFlagCode(){
         return FlagUtilities.getFlag(
                 new int[]{
-                        this.relativeLocation.getX()+64,
-                        this.relativeLocation.getY()+64,
+                        this.encodedMapLocation.x,
+                        this.encodedMapLocation.y,
                         this.scaledConviction,
                         0x09
                 }, new int[]{
@@ -57,18 +47,19 @@ public strictfp class SelfStatus implements FlagMessage{
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SelfStatus that = (SelfStatus) o;
-        return scaledConviction == that.scaledConviction && Objects.equals(relativeLocation, that.relativeLocation);
+        return scaledConviction == that.scaledConviction && Objects.equals(encodedMapLocation, that.encodedMapLocation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(relativeLocation, scaledConviction);
+        return Objects.hash(encodedMapLocation, scaledConviction);
     }
 
     @Override
-    public String toString() {
+    public String
+    toString() {
         return "SelfStatus{" +
-                "relativeLocation=" + relativeLocation +
+                "encodedMapLocation=" + encodedMapLocation +
                 ", scaledConviction=" + scaledConviction +
                 '}';
     }

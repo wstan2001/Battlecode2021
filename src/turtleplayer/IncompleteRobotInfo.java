@@ -5,10 +5,7 @@ import battlecode.common.RobotInfo;
 import battlecode.common.RobotType;
 import battlecode.common.Team;
 import org.jetbrains.annotations.Nullable;
-import turtleplayer.flagutilities.IDMessagePartOne;
-import turtleplayer.flagutilities.IDMessagePartTwo;
-import turtleplayer.flagutilities.SelfStatus;
-import turtleplayer.flagutilities.UnitPresent;
+import turtleplayer.flagutilities.*;
 
 public class IncompleteRobotInfo{
 
@@ -16,88 +13,72 @@ public class IncompleteRobotInfo{
     public RobotType robotType;
     public final Team team;
 
-    @Nullable
-    public Integer robotId;
+    public int processedRobotID;
+    public int lastSeenRoundNumber;
+    public int lastSeenConviction;
+    public int lastSeenScaledConviction;
+
     @Nullable
     public MapLocation lastSeenMapLocation;
-    @Nullable
-    public Integer lastSeenRoundNumber;
-    @Nullable
-    public Integer lastSeenConviction;
 
-    IncompleteRobotInfo(IDMessagePartOne idMessagePartOne, IDMessagePartTwo idMessagePartTwo, int roundNumber){
-        this(idMessagePartTwo.getTeam(),false,idMessagePartTwo.getRobotType(),
-                (idMessagePartOne.getRobotIDPart() | (idMessagePartTwo.getRobotIDPart() << 20)),
-                null, roundNumber, idMessagePartTwo.getInfluence() );
+    IncompleteRobotInfo(IDMessage idMessage, int roundNumber){
+        this(Utilities.ALLY_TEAM, true, idMessage.robotType, idMessage.processedRobotID, null,
+                roundNumber, -1, idMessage.scaledConviction);
     }
 
-    IncompleteRobotInfo(UnitPresent unitPresent, IncompleteRobotInfo sender, int roundNumber){
-        this(unitPresent.getTeam(), unitPresent.isTrueSense(), unitPresent.getRobotType(), null,
-                sender.lastSeenMapLocation != null
-                        ? unitPresent.getRelativeLocation().applyTo(sender.lastSeenMapLocation)
-                        : null
-                , roundNumber, unitPresent.getInfluence());
+    IncompleteRobotInfo(UnitPresent unitPresent, IncompleteRobotInfo sender, int roundNumber, MapLocation mapLocation){
+        this(unitPresent.team, unitPresent.trueSense, unitPresent.robotType, -1,
+                unitPresent.encodedMapLocation.applyTo(mapLocation),
+                roundNumber, -1, unitPresent.scaledConviction);
     }
 
     IncompleteRobotInfo(RobotInfo robotInfo, boolean trueSense, int roundNumber){
         this(robotInfo.getTeam(), trueSense, robotInfo.getType(), robotInfo.getID(), robotInfo.getLocation(),
-                roundNumber,robotInfo.getConviction());
+                roundNumber,robotInfo.getConviction(), -1);
     }
 
-    IncompleteRobotInfo(Team team, boolean trueSense, RobotType robotType, @Nullable Integer robotId,
-                        @Nullable MapLocation mapLocation, int roundNumber, @Nullable Integer conviction){
+    private IncompleteRobotInfo(Team team, boolean trueSense, RobotType robotType, int processedRobotID,
+                        @Nullable MapLocation mapLocation, int roundNumber, int conviction, int scaledConviction){
         this.team = team;
         this.couldBeSlanderer = (!trueSense) && (robotType == RobotType.POLITICIAN);
         this.robotType = robotType;
-        this.robotId = robotId;
+        this.processedRobotID = processedRobotID;
+        this.lastSeenScaledConviction = scaledConviction;
         this.lastSeenMapLocation = mapLocation;
         this.lastSeenRoundNumber = roundNumber;
         this.lastSeenConviction = conviction;
     }
 
-    private static boolean couldBeSameType(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
+    private static double sameTypeConfidence(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
         if(r1.robotType == r2.robotType){
-            return true;
+            return 1.0;
         }
         if(r1.robotType == RobotType.SLANDERER && r2.robotType == RobotType.POLITICIAN && r2.couldBeSlanderer){
-            return true;
+            return 0.5;
         }else if(r2.robotType == RobotType.SLANDERER && r1.robotType == RobotType.POLITICIAN && r1.couldBeSlanderer){
-            return true;
+            return 0.5;
         }
-        return false;
+        return 0.0;
     }
 
-    private static boolean couldBeIDMatch(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
-        if(r1.robotId != null && r2.robotId != null){
-            return r1.robotId.equals(r2.robotId);
-        }else{
-            return true;
+    private static double sameLocationConfidence(IncompleteRobotInfo r1, IncompleteRobotInfo r2){
+        int roundNumDifference = r1.lastSeenRoundNumber - r2.lastSeenRoundNumber;
+        MapLocation mapLocation1 = r1.lastSeenMapLocation;
+        MapLocation mapLocation2 = r2.lastSeenMapLocation;
+        if(mapLocation1 == null || mapLocation2 == null){
+            return 0.5;
         }
+        int distance = Math.max(Math.abs(mapLocation1.x-mapLocation2.x),
+                Math.abs(mapLocation1.y-mapLocation2.y));
+        return (distance <= roundNumDifference) ? 1-Math.exp(-(double)roundNumDifference/distance) : 0;
     }
 
     public double isRobotConfidence(IncompleteRobotInfo robotInfo){
-        if(!couldBeSameType(this, robotInfo) || !couldBeIDMatch(this, robotInfo)){
-            return 0.0;
-        }else if(robotId != null && robotInfo.robotId != null && robotId.intValue() == robotInfo.robotId.intValue()) {
+        if(processedRobotID != -1 && robotInfo.processedRobotID != -1 &&
+                processedRobotID== robotInfo.processedRobotID) {
             return 1.0;
         }else{
-            assert lastSeenRoundNumber != null;
-            assert robotInfo.lastSeenRoundNumber != null;
-            assert lastSeenMapLocation != null;
-            assert robotInfo.lastSeenMapLocation != null;
-            int earlierRoundNum = lastSeenRoundNumber;
-            int laterRoundNum = robotInfo.lastSeenRoundNumber;
-            MapLocation earlierMapLocation = lastSeenMapLocation;
-            MapLocation laterMapLocation = robotInfo.lastSeenMapLocation;
-            int roundNumDifference = laterRoundNum - earlierRoundNum;
-            assert roundNumDifference >= 0;
-            int distance = Math.max(Math.abs(earlierMapLocation.x-laterMapLocation.x),
-                    Math.abs(earlierMapLocation.y-laterMapLocation.y));
-            if(roundNumDifference > distance){
-                return 0.925 - 0.05*((double)distance/roundNumDifference);
-            }else{
-                return 0;
-            }
+            return sameTypeConfidence(this,robotInfo) * sameLocationConfidence(this,robotInfo);
         }
     }
 
@@ -106,28 +87,29 @@ public class IncompleteRobotInfo{
             this.couldBeSlanderer = false;
             this.robotType = RobotType.SLANDERER;
         }
-        if(robotId == null && robotInfo.robotId != null){
-            robotId = robotInfo.robotId;
+        if(processedRobotID == -1 && robotInfo.processedRobotID != -1){
+            processedRobotID = robotInfo.processedRobotID;
         }
-        assert robotInfo.lastSeenRoundNumber != null;
-        assert lastSeenRoundNumber != null;
         int otherRoundNumber = robotInfo.lastSeenRoundNumber;
         if(otherRoundNumber > lastSeenRoundNumber){
             lastSeenRoundNumber = otherRoundNumber;
             if(robotInfo.lastSeenMapLocation != null) {
                 lastSeenMapLocation = robotInfo.lastSeenMapLocation;
             }
-            if(robotInfo.lastSeenConviction != null){
+            if(robotInfo.lastSeenConviction != -1){
                 lastSeenConviction = robotInfo.lastSeenConviction;
+            }
+            if(robotInfo.lastSeenScaledConviction != -1){
+                lastSeenScaledConviction = -1;
             }
         }
     }
 
-    public void update(SelfStatus selfStatus){
+    public void update(SelfStatus selfStatus, MapLocation mapLocation){
         if(lastSeenMapLocation != null) {
-            this.lastSeenMapLocation = selfStatus.getRelativeLocation().applyTo(lastSeenMapLocation);
+            this.lastSeenMapLocation = selfStatus.encodedMapLocation.applyTo(lastSeenMapLocation);
         }
-        this.lastSeenConviction = selfStatus.getConviction();
+        this.lastSeenScaledConviction = selfStatus.scaledConviction;
     }
 
 }

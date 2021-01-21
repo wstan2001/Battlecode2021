@@ -8,6 +8,7 @@ import java.util.Objects;
 /*
     implementation of FlagMessage for a flag signalling the first part of an ID
  */
+@Deprecated
 public strictfp class IDMessagePartTwo implements FlagMessage{
 
     private final int robotIDPart;

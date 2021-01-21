@@ -1,5 +1,7 @@
 package turtleplayer.flagutilities;
 
+import static turtleplayer.Utilities.bound;
+
 public strictfp class FlagUtilities {
 
     enum FlagMeaning{
@@ -17,20 +19,18 @@ public strictfp class FlagUtilities {
     }
 
     public static FlagMessage decodeFlag(int flagCode){
-        if(UnitPresent.hasCorrectPrefix(flagCode)) {
-            return new UnitPresent(flagCode);
-        }else if(IDMessagePartOne.hasCorrectPrefix(flagCode)){
-            return new IDMessagePartOne(flagCode);
-        }else if(IDMessagePartTwo.hasCorrectPrefix(flagCode)){
-            return new IDMessagePartTwo(flagCode);
-        }else if(SelfStatus.hasCorrectPrefix(flagCode)){
-            return new SelfStatus(flagCode);
-        }else if(TerrainMapping.hasCorrectPrefix(flagCode)){
-            return new TerrainMapping(flagCode);
-        }else if(MoveCommand.hasCorrectPrefix(flagCode)){
-            return new MoveCommand(flagCode);
-        }else{
-            return new InvalidFlagMessage();
+        int prefix = getPartOfFlag(flagCode,23,20);
+        switch(prefix){
+            case 0x0F:
+            case 0x0E:
+            case 0x0D:
+            case 0x0C:
+                return new UnitPresent(flagCode);
+            case 0x0B: return new IDMessage(flagCode);
+            case 0x0A: return new MoveCommand(flagCode);
+            case 0x09: return new SelfStatus(flagCode);
+            case 0x08: return new TerrainMapping(flagCode);
+            default: return new InvalidFlagMessage();
         }
     }
 
@@ -74,10 +74,5 @@ public strictfp class FlagUtilities {
         }
         return flagCode;
     }
-
-    private static int bound(int num, int lb, int ub){
-        return Math.min(Math.max(num,lb),ub);
-    }
-
 
 }

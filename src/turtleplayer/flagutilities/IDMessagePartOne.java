@@ -1,12 +1,11 @@
 package turtleplayer.flagutilities;
 
-import battlecode.common.RobotType;
-
 import java.util.Objects;
 
 /*
     implementation of FlagMessage for a flag signalling the first part of an ID
  */
+@Deprecated
 public strictfp class IDMessagePartOne implements FlagMessage{
 
     private final int robotIDPart;

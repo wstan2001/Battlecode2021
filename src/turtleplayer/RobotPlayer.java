@@ -1,7 +1,6 @@
 package turtleplayer;
-import battlecode.common.*;
 
-import java.util.*;
+import battlecode.common.*;
 
 public strictfp class RobotPlayer {
     /**
@@ -16,9 +15,9 @@ public strictfp class RobotPlayer {
         System.out.println("I'm a " + rc.getType() + " and I just got created!");
         AwarenessModule aw = new AwarenessModule();
         System.out.println("AW:"+ Clock.getBytecodeNum());
-        Utilities.start();
         System.out.println("UT: " + Clock.getBytecodeNum());
         Team team = rc.getTeam();
+        Utilities.start(team, rc, aw, rc.getLocation(), rc.getType());
         switch (rc.getType()) {
             case ENLIGHTENMENT_CENTER: EnlightenmentCenter.start(rc, aw); break;
             case POLITICIAN:           Politician.start(rc, aw);          break;
@@ -28,10 +27,12 @@ public strictfp class RobotPlayer {
         System.out.println("START: " + Clock.getBytecodeNum());
         while (true) {
             try {
-                aw.update(rc,true,rc.getRoundNum(), rc.getType(), rc.getLocation(), team);
+                MapLocation location = rc.getLocation();
+                int roundNumber = rc.getRoundNum();
+                aw.update(rc,true,rc.getRoundNum(), rc.getType(), location);
                 System.out.println("UPDATE: "+Clock.getBytecodeNum());
                 switch (rc.getType()) {
-                    case ENLIGHTENMENT_CENTER: EnlightenmentCenter.processTurn(); break;
+                    case ENLIGHTENMENT_CENTER: EnlightenmentCenter.processTurn(location, roundNumber); break;
                     case POLITICIAN:           Politician.processTurn();          break;
                     case SLANDERER:            Slanderer.processTurn();           break;
                     case MUCKRAKER:            Muckraker.processTurn();           break;

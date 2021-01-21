@@ -1,7 +1,6 @@
 package turtleplayer;
 
-import battlecode.common.Clock;
-
+@Deprecated
 public class PassabilityKnowledge{
     public boolean[] flagKnowledge;
     public boolean[] validFlagKnowledge;

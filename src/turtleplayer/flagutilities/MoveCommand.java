@@ -1,6 +1,6 @@
 package turtleplayer.flagutilities;
 
-import battlecode.common.RobotType;
+import battlecode.common.MapLocation;
 
 import java.util.Objects;
 
@@ -9,42 +9,28 @@ import java.util.Objects;
  */
 public strictfp class MoveCommand implements FlagMessage{
 
-    private final RelativeLocation relativeLocation;
-    private final int robotIDPart;
+    public final EncodedMapLocation encodedMapLocation;
+    public final int robotIDPart;
 
-    public MoveCommand(RelativeLocation relativeLocation, int robotID){
-        this.relativeLocation = relativeLocation;
+    public MoveCommand(MapLocation mapLocation, int robotID){
+        this.encodedMapLocation = new EncodedMapLocation(mapLocation);
         this.robotIDPart = FlagUtilities.getPartOfFlag(robotID,5,0);
     }
 
-    private final static int PREFIX_BIT_MASK = 0x00F00000;
-    private final static int PREFIX_CORRECT = 0x00700000;
-
-    public static boolean hasCorrectPrefix(int flagCode){
-        return (flagCode & PREFIX_BIT_MASK) == PREFIX_CORRECT;
-    }
-
     public MoveCommand(int flagCode){
-        this.relativeLocation = new RelativeLocation(
-                FlagUtilities.getPartOfFlag(flagCode,6,0)-64,
-                FlagUtilities.getPartOfFlag(flagCode,13,7)-64);
+        this.encodedMapLocation = new EncodedMapLocation(
+                FlagUtilities.getPartOfFlag(flagCode,6,0),
+                FlagUtilities.getPartOfFlag(flagCode,13,7));
         this.robotIDPart = FlagUtilities.getPartOfFlag(flagCode,19,14);
-    }
-    public RelativeLocation getRelativeLocation() {
-        return relativeLocation;
-    }
-
-    public int getRobotIDPart() {
-        return robotIDPart;
     }
 
     public int getFlagCode(){
         return FlagUtilities.getFlag(
                 new int[]{
-                        this.relativeLocation.getX()+64,
-                        this.relativeLocation.getY()+64,
+                        this.encodedMapLocation.x,
+                        this.encodedMapLocation.y,
                         this.robotIDPart,
-                        0x07
+                        0x0A
                 }, new int[]{
                         7,7,6,4
                 }
@@ -56,18 +42,18 @@ public strictfp class MoveCommand implements FlagMessage{
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MoveCommand that = (MoveCommand) o;
-        return robotIDPart == that.robotIDPart && Objects.equals(relativeLocation, that.relativeLocation);
+        return robotIDPart == that.robotIDPart && Objects.equals(encodedMapLocation, that.encodedMapLocation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(relativeLocation, robotIDPart);
+        return Objects.hash(encodedMapLocation, robotIDPart);
     }
 
     @Override
     public String toString() {
         return "MoveCommand{" +
-                "relativeLocation=" + relativeLocation +
+                "encodedMapLocation=" + encodedMapLocation +
                 ", robotIDPart=" + robotIDPart +
                 '}';
     }

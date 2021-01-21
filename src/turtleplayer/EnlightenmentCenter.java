@@ -1,28 +1,23 @@
 package turtleplayer;
 
-import battlecode.common.*;
-
-import static turtleplayer.Utilities.directions;
-import static turtleplayer.Utilities.randomSpawnableRobotType;
+import battlecode.common.GameActionException;
+import battlecode.common.MapLocation;
+import battlecode.common.RobotController;
 
 public strictfp class EnlightenmentCenter {
     private static RobotController rc;
     private static AwarenessModule aw;
+
     public static void start (RobotController rc, AwarenessModule aw){
         EnlightenmentCenter.rc = rc;
         EnlightenmentCenter.aw = aw;
     }
 
-    public static void processTurn() throws GameActionException {
-        RobotType toBuild = randomSpawnableRobotType();
-        int influence = 50;
-        for (Direction dir : directions) {
-            if (rc.canBuildRobot(toBuild, dir, influence)) {
-                rc.buildRobot(toBuild, dir, influence);
-            } else {
-                break;
-            }
-        }
+    private static final int[] EFFICIENT_SLANDERER_INFLUENCE = new int[]{21,41,63,85,107,130,154,178,203,228,255,282};
 
+    public static void processTurn(MapLocation robotMapLocation, int roundNumber) throws GameActionException {
+        if(roundNumber <= 1){
+
+        }
     }
 }

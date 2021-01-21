@@ -6,32 +6,20 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 
 public strictfp class RelativeLocation {
-    private int x;
-    private int y;
+    public int x;
+    public int y;
 
     public RelativeLocation(int x, int y){
         this.x = x;
         this.y = y;
     }
 
-    public int getX() {
-        return x;
-    }
-
-    public int getY() {
-        return y;
-    }
-
     public MapLocation applyTo(@Nullable MapLocation mapLocation){
         if(mapLocation == null){
             return null;
         }else {
-            return new MapLocation(mapLocation.x + x, mapLocation.y + y);
+            return mapLocation.translate(x,y);
         }
-    }
-
-    public int radiusSquared(){
-        return x*x + y*y;
     }
 
     @Override
