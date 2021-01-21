@@ -85,7 +85,7 @@ public class EnlightenmentCenterLogic {
             spawnRobot(RobotType.SLANDERER, "Random", new MapLocation(-1, -1), spawnInfluence);
             slandCooldown = 10;
         }
-        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.2) / 10.0) {
+        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.25) / 10.0) {
             //randomized spawn code
             //note we're not going to spawn slanderers in this state
             System.out.println("Poli spawn prob: " + (0.3 + slandScore / 50.0));
