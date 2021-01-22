@@ -105,6 +105,13 @@ public class Bidding {
                 bidAmount = convToIntRandomly(aggression);
             }
         }
+        if(previousRoundSkipped){
+            if(influenceLeft > 50 && rng.nextDouble() < 0.8){
+                bidAmount = rng.nextInt(4);
+            }else {
+                bidAmount = 0;
+            }
+        }
         previousNumVotes = numTeamVotes;
 
         previousBidAmount = bidAmount;
