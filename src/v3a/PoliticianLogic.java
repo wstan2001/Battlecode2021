@@ -65,9 +65,11 @@ public class PoliticianLogic {
         rc.setFlag(0);              //don't send outdated info
         scanForEC();
 
-        if (!wandering && rng.nextDouble() < 0.003) {
-            //any troop has a 0.3% chance of beginning to move in random directions
-            wandering = true;
+        if (!wandering) {
+            //any troop has a 1% chance of beginning to move in random directions
+            //also, troops start to wander when ~10 units from base, need to defend against mucks
+            if (rng.nextDouble() < 0.01 || (!homeLoc.equals(new MapLocation(-1, -1)) && rc.getLocation().distanceSquaredTo(homeLoc) >= 100))
+                wandering = true;
         }
 
 
@@ -103,7 +105,7 @@ public class PoliticianLogic {
                         type = "Stalk";
                         curTarget = rinfo.getID();
                         rc.setFlag(encodeInstruction(Flag.OPCODE.STALK, 0, 0, curTarget % (1 << 20)));
-                        System.out.println("Now stalking " + curTarget);
+                        //System.out.println("Now stalking " + curTarget);
                         runStalk();
                         break;
                     }
@@ -223,7 +225,9 @@ public class PoliticianLogic {
             }
         }
         if (generalDir != -1) {
-            if (wandering)
+            if (!homeLoc.equals(new MapLocation(-1, -1)) && rc.getLocation().distanceSquaredTo(homeLoc) <= 16) //too close to home
+                moveSlander(oppositeDir(rc.getLocation().directionTo(homeLoc)));        //want wider range of movement, ignore generalDir
+            else if (wandering)
                 moveDir(directions[rng.nextInt(8)]);
             else
                 moveDir(directions[generalDir]);
@@ -249,7 +253,7 @@ public class PoliticianLogic {
 
         rc.setFlag(0);              //don't send outdated info
         scanForEC();
-
+    
         if (!targetLoc.equals(new MapLocation(-1, -1)) && rc.getLocation().distanceSquaredTo(getAbsCoords(targetLoc)) <= 9) {
             //update the countdown
             countdown -= 1;
@@ -294,7 +298,7 @@ public class PoliticianLogic {
                         RobotInfo robotInfo = sortedByRadius[j][k];
                         if(robotInfo.team == ally){
                             if(robotInfo.location.equals(getAbsCoords(targetLoc))){
-                                System.out.println("Found ally target!");
+                                //System.out.println("Found ally target!");
                                 effectiveness += convictionUseOnEach*10;
                             }
                             if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
@@ -303,7 +307,7 @@ public class PoliticianLogic {
                         }else if(robotInfo.team == enemy){
                             if (robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
                                 if(robotInfo.location.equals(getAbsCoords(targetLoc))){
-                                    System.out.println("Found enemy target!");
+                                    //System.out.println("Found enemy target!");
                                     effectiveness += convictionUseOnEach*10;
                                 }
                                 if (robotInfo.conviction < convictionUseOnEach) {
@@ -343,12 +347,14 @@ public class PoliticianLogic {
         MapLocation absLoc = getAbsCoords(targetLoc);
         if (rc.canSenseLocation(absLoc)) {
             RobotInfo rinfo = rc.senseRobotAtLocation(absLoc);
-            if (rinfo != null && rinfo.getTeam() == rc.getTeam() && rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER) {
+            if (rinfo != null && rinfo.getTeam() == rc.getTeam() && rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER 
+                && rc.getEmpowerFactor(rc.getTeam(), 5) < 4.20) {
                 //don't crowd the ally EC
                 //System.out.println("I'm gonna stop crowding!");
                 type = "Troop";
                 targetLoc = new MapLocation(-1, -1);
                 generalDir = rng.nextInt(8);
+                return;
             }
         }
         moveToLoc(targetLoc);

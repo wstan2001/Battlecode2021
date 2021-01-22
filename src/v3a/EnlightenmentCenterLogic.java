@@ -66,6 +66,12 @@ public class EnlightenmentCenterLogic {
                 slandCooldown = 4;
             }
         }
+        else if (rc.getEmpowerFactor(rc.getTeam(), 15) > 4.2 && bombCooldown < 0) {      //need to check multiplier 15 turns in future bc of 10 turn unit spawn penalty
+            MapLocation selfLoc = new MapLocation(rc.getLocation().x % 128, rc.getLocation().y % 128);
+            //System.out.println("Bombing self!");
+            spawnRobot(RobotType.POLITICIAN, "Bomb", selfLoc, (int) (rc.getInfluence() * 2.0 / 3));
+            bombCooldown = 5;
+        }
         else if (enemyCount > 4 && defenderCount < 2) {
             spawnRobot(RobotType.POLITICIAN, "Troop", new MapLocation(-1, -1), Math.max(17, rc.getInfluence() / 10));
         }
@@ -85,16 +91,16 @@ public class EnlightenmentCenterLogic {
             spawnRobot(RobotType.SLANDERER, "Random", new MapLocation(-1, -1), spawnInfluence);
             slandCooldown = 10;
         }
-        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.2) / 10.0) {
+        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.25) / 10.0) {
             //randomized spawn code
             //note we're not going to spawn slanderers in this state
-            System.out.println("Poli spawn prob: " + (0.3 + slandScore / 50.0));
-            toSpawn = (rng.nextDouble() < Math.min(0.75, 0.3 + slandScore / 50.0)) ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
+            //System.out.println("Poli spawn prob: " + (0.35 + slandScore / 40.0));
+            toSpawn = (rng.nextDouble() < Math.min(0.75, 0.35 + slandScore / 40.0)) ? RobotType.POLITICIAN : RobotType.MUCKRAKER;
 
             if (toSpawn == RobotType.POLITICIAN) {
-                if (rng.nextDouble() < 0.5 && bombCooldown < 0 && targetNeutralLoc.x != -1 && targetNeutralLoc.y != -1 && rc.getInfluence() > 140) {
+                if (rng.nextDouble() < 0.5 && bombCooldown < 0 && targetECLoc.x != -1 && targetECLoc.y != -1 && rc.getInfluence() > 140) {
                     spawnType = "Bomb";
-                    spawnTarget = targetNeutralLoc;
+                    spawnTarget = targetECLoc;
                     spawnInfluence = rc.getInfluence() / 3;
                     bombCooldown = 10;              //wait before spawning more bombs
                 }
@@ -150,7 +156,7 @@ public class EnlightenmentCenterLogic {
                     if(rc.canSetFlag(encodeInstruction(Flag.OPCODE.BOMB, spawnTarget.x, spawnTarget.y, 0))) { //op, xcoord, ycoord, of location to seek
                         rc.setFlag(encodeInstruction(Flag.OPCODE.BOMB, spawnTarget.x, spawnTarget.y, 0));
                         MapLocation absLoc = getAbsCoords(spawnTarget);
-                        System.out.println("Sending bomb to neutral EC at " + absLoc.x + " " + absLoc.y);
+                        System.out.println("Sending bomb to " + targetECTeam + " EC at " + absLoc.x + " " + absLoc.y);
                     }
                 }
                 else {

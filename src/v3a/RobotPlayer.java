@@ -22,10 +22,11 @@ public strictfp class RobotPlayer {
 
     //EC state variables
     static int[] unitIDs = new int[40];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
-    static int[] slandIDs = new int[30];        //keep track of slanderer IDs
+    static int[] slandIDs = new int[25];        //keep track of slanderer IDs
 
-    static MapLocation targetNeutralLoc = new MapLocation(-1, -1);
-    static int targetNeutralCost = 999999;             //influence + 0.5 * distance^2, prioritize lower cost ECs
+    static MapLocation targetECLoc = new MapLocation(-1, -1);           //prioritize neutral ECs, then enemy ECs
+    static int targetECCost = 999999;             //influence + 0.5 * distance^2, prioritize lower cost ECs
+    static String targetECTeam = "None";
     static int bombCooldown = -1;
     static int slandCooldown = -1;
     static int slandScore = 0;              //+1 for every nongenerating sland, +3 for every generating sland
@@ -140,11 +141,23 @@ public strictfp class RobotPlayer {
      */
     static void processEnemyEC(int x, int y, int data) throws GameActionException {
         MapLocation loc = new MapLocation(x, y);
+        MapLocation absLoc = getAbsCoords(loc);
+        MapLocation selfLoc = rc.getLocation();
 
-        if (loc.equals(targetNeutralLoc)) {
-            //reset target neutral
-            targetNeutralLoc = new MapLocation(-1, -1);
-            targetNeutralCost = 999999;
+        if (loc.equals(targetECLoc)) {
+            //neutral EC captured by enemy
+            //reset target EC
+            targetECLoc = new MapLocation(-1, -1);
+            targetECCost = 999999;
+            targetECTeam = "None";
+        }
+
+        int cost = (int) (0.5 * selfLoc.distanceSquaredTo(absLoc) + data * 20);
+        if (!targetECTeam.equals("Neutral") && cost < targetECCost) {
+            //only target enemy EC after all neutral ECs taken
+            targetECLoc = loc;
+            targetECCost = cost;
+            targetECTeam = "Enemy";
         }
 
         //System.out.println("Found enemy EC at " + x + " " + y + " with influence " + data * 20);
@@ -188,9 +201,10 @@ public strictfp class RobotPlayer {
         MapLocation selfLoc = rc.getLocation();
 
         int cost = (int) (0.5 * selfLoc.distanceSquaredTo(absLoc) + data * 20);
-        if (cost < targetNeutralCost) {
-            targetNeutralLoc = loc;
-            targetNeutralCost = cost;
+        if (!targetECTeam.equals("Neutral") || cost < targetECCost) {
+            targetECLoc = loc;
+            targetECCost = cost;
+            targetECTeam = "Neutral";
         }
 
         //System.out.println("Found neutral EC at " + x + " " + y + " with influence " + data * 20);
@@ -231,10 +245,12 @@ public strictfp class RobotPlayer {
     static void processAllyEC(int x, int y, int data) throws GameActionException {
         MapLocation loc = new MapLocation(x, y);
 
-        if (loc.equals(targetNeutralLoc)) {
+        if (loc.equals(targetECLoc)) {
+            //allies captured neutral EC
             //reset target neutral
-            targetNeutralLoc = new MapLocation(-1, -1);
-            targetNeutralCost = 999999;
+            targetECLoc = new MapLocation(-1, -1);
+            targetECCost = 999999;
+            targetECTeam = "None";
         }
 
         //System.out.println("Found ally EC at " + x + " " + y + " with influence " + data * 20);
