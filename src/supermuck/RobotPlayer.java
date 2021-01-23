@@ -1,14 +1,14 @@
-package v3a;
+package supermuck;
 
 import battlecode.common.*;
 
 import java.util.Random;
-import static v3a.Flag.*;
-import static v3a.Pathing.*;
-import static v3a.PoliticianLogic.*;
-import static v3a.EnlightenmentCenterLogic.*;
-import static v3a.SlandererLogic.*;
-import static v3a.MuckrakerLogic.*;
+import static supermuck.Flag.*;
+import static supermuck.Pathing.*;
+import static supermuck.PoliticianLogic.*;
+import static supermuck.EnlightenmentCenterLogic.*;
+import static supermuck.SlandererLogic.*;
+import static supermuck.MuckrakerLogic.*;
 
 public strictfp class RobotPlayer {
     static RobotController rc;

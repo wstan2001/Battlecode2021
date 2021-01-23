@@ -1,8 +1,8 @@
-package v3a;
+package supermuck;
 
 import battlecode.common.GameActionException;
 
-import static v3a.RobotPlayer.*;
+import static supermuck.RobotPlayer.*;
 
 public class Bidding {
     static int previousNumVotes = 0;

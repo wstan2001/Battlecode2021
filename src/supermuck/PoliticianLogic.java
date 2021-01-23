@@ -1,11 +1,11 @@
-package v3a;
+package supermuck;
 
 import battlecode.common.*;
 
-import static v3a.Flag.encodeInstruction;
-import static v3a.Flag.opcode;
-import static v3a.Pathing.*;
-import static v3a.RobotPlayer.*;
+import static supermuck.Flag.encodeInstruction;
+import static supermuck.Flag.opcode;
+import static supermuck.Pathing.*;
+import static supermuck.RobotPlayer.*;
 
 public class PoliticianLogic {
 
@@ -347,7 +347,8 @@ public class PoliticianLogic {
         MapLocation absLoc = getAbsCoords(targetLoc);
         if (rc.canSenseLocation(absLoc)) {
             RobotInfo rinfo = rc.senseRobotAtLocation(absLoc);
-            if (rinfo != null && rinfo.getTeam() == rc.getTeam() && rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER) {
+            if (rinfo != null && rinfo.getTeam() == rc.getTeam() && rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER 
+                && rc.getEmpowerFactor(rc.getTeam(), 5) < 4.20) {
                 //don't crowd the ally EC
                 //System.out.println("I'm gonna stop crowding!");
                 type = "Troop";

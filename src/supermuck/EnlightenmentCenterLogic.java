@@ -1,12 +1,12 @@
-package v3a;
+package supermuck;
 
 import battlecode.common.*;
 
-import static v3a.Bidding.bid;
-import static v3a.Flag.encodeInstruction;
-import static v3a.Flag.opcode;
-import static v3a.Pathing.*;
-import static v3a.RobotPlayer.*;
+import static supermuck.Bidding.bid;
+import static supermuck.Flag.encodeInstruction;
+import static supermuck.Flag.opcode;
+import static supermuck.Pathing.*;
+import static supermuck.RobotPlayer.*;
 
 public class EnlightenmentCenterLogic {
 
@@ -67,14 +67,13 @@ public class EnlightenmentCenterLogic {
             }
         }
         /*
-        //bomb self strat now obsolete
+        //Bomb self strat now obsolete
         else if (rc.getEmpowerFactor(rc.getTeam(), 15) > 4.2 && bombCooldown < 0) {      //need to check multiplier 15 turns in future bc of 10 turn unit spawn penalty
             MapLocation selfLoc = new MapLocation(rc.getLocation().x % 128, rc.getLocation().y % 128);
             //System.out.println("Bombing self!");
             spawnRobot(RobotType.POLITICIAN, "Bomb", selfLoc, (int) (rc.getInfluence() * 2.0 / 3));
             bombCooldown = 5;
-        }
-        */
+        }*/
         else if (enemyCount > 4 && defenderCount < 2) {
             spawnRobot(RobotType.POLITICIAN, "Troop", new MapLocation(-1, -1), Math.max(17, rc.getInfluence() / 10));
         }
@@ -125,6 +124,10 @@ public class EnlightenmentCenterLogic {
                     //send muck to enemy EC
                     spawnType = "Targeting";
                     spawnInfluence = 1;
+                    if (rng.nextDouble() < 0.02) {
+                        System.out.println("UNLEASH THE SUPERMUCK");
+                        spawnInfluence = rc.getInfluence() / 2;
+                    }
                     int temp = rng.nextInt(numFoundEnemy);
                     for (int i = 0; i < enemyECLoc.length; i++) {
                         if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
@@ -141,6 +144,10 @@ public class EnlightenmentCenterLogic {
                 else {
                     spawnType = "Random";
                     spawnInfluence = 1;
+                    if (rng.nextDouble() < 0.02) {
+                        System.out.println("UNLEASH THE SUPERMUCK");
+                        spawnInfluence = rc.getInfluence() / 2;
+                    }
                 }
             }
         }
