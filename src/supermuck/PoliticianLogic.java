@@ -2,6 +2,9 @@ package supermuck;
 
 import battlecode.common.*;
 
+import java.util.Arrays;
+
+import static supermuck.EnlightenmentCenterLogic.goodSlandererInfluences;
 import static supermuck.Flag.encodeInstruction;
 import static supermuck.Flag.opcode;
 import static supermuck.Pathing.*;
@@ -120,21 +123,31 @@ public class PoliticianLogic {
             MapLocation currentLocation = rc.getLocation();
             RobotInfo[][] sortedByRadius = new RobotInfo[6][8];
             int[] sortedByRadiusLengths = new int[]{0,0,0,0,0,0};
-            double[][] allyECSurroundedBonus = new double[6][8];
+            double[][] enemyKillBounty = new double[6][8];
+            double[][] enemyKillMultiplier = new double[6][8];
             RobotInfo[] actionRadiusNearbyRobots = rc.senseNearbyRobots(actionRadius);
             int[] allyECSurroundedValue = new int[10];
             int indx, length;
-            MapLocation[] allyECLocations = new MapLocation[10];
-            int numAllyECLocations = 0;
+            RobotInfo[] allyECs = new RobotInfo[10];
+            RobotInfo[] allySlanderers = new RobotInfo[10];
+            int numAllySlanderers = 0;
+            int numAllyECs = 0;
             for(RobotInfo robotInfo : actionRadiusNearbyRobots){
+                if((
+                        (robotInfo.type == RobotType.POLITICIAN && opcode(rc.getFlag(robotInfo.ID)) == Flag.OPCODE.SLAND)
+                            || robotInfo.type == RobotType.SLANDERER) &&
+                        numAllySlanderers < 10 && robotInfo.team == ally){
+                    allySlanderers[numAllySlanderers] = robotInfo;
+                    numAllySlanderers++;
+                }
                 if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER && robotInfo.team == ally){
-                    allyECLocations[numAllyECLocations] = robotInfo.location;
-                    numAllyECLocations++;
+                    allyECs[numAllyECs] = robotInfo;
+                    numAllyECs++;
                     for(Direction direction: directions){
                         MapLocation adjacent = robotInfo.location.add(direction);
                         if(adjacent.distanceSquaredTo(currentLocation) <= sensorRadius){
                             if(!rc.canSenseLocation(adjacent)){
-                                allyECSurroundedValue[numAllyECLocations] += 1;
+                                allyECSurroundedValue[numAllyECs] += 1;
                             }
                         }
                     }
@@ -146,10 +159,34 @@ public class PoliticianLogic {
                 length = sortedByRadiusLengths[indx];
                 sortedByRadius[indx][length] = robotInfo;
                 sortedByRadiusLengths[indx]++;
-                for (int i = 0; i < numAllyECLocations; i++) {
-                    int distanceSquared = allyECLocations[i].distanceSquaredTo(robotInfo.location);
+                for (int i = 0; i < numAllyECs; i++) {
+                    int distanceSquared = allyECs[i].location.distanceSquaredTo(robotInfo.location);
                     if(distanceSquared <= 2){
                         allyECSurroundedValue[i] += 1;
+                    }
+                }
+                if(robotInfo.team == enemy && robotInfo.type == RobotType.MUCKRAKER){
+                    for (int i = 0; i < numAllySlanderers; i++) {
+                        int distanceSquared = robotInfo.location.distanceSquaredTo(allySlanderers[i].location);
+                        if(distanceSquared <= 12) { // one turn (possibly) before death)
+                            enemyKillBounty[indx][length] += allySlanderers[i].influence/2.0;
+                            enemyKillMultiplier[indx][length] += 1;
+                        }else if(distanceSquared <= 20){ // one turn (possibly) before death)
+                            enemyKillBounty[indx][length] += allySlanderers[i].influence/5.0;
+                            enemyKillMultiplier[indx][length] += 0.5;
+                        }else if(distanceSquared <= 30){ // they know, but aren't in range yet
+                            enemyKillBounty[indx][length] += allySlanderers[i].influence/12.0;
+                            enemyKillMultiplier[indx][length] += 0.25;
+                        }
+                    }
+                }else if(robotInfo.team == enemy && robotInfo.type == RobotType.POLITICIAN){
+                    for (int i = 0; i < numAllyECs; i++) {
+                        int distanceSquared = robotInfo.location.distanceSquaredTo(allyECs[i].location);
+                        if(distanceSquared <= 20) {
+                            double convictionRatio = (double) robotInfo.conviction / allyECs[i].conviction;
+                            convictionRatio = Math.min(convictionRatio, 2);
+                            enemyKillMultiplier[indx][length] += convictionRatio*2;
+                        }
                     }
                 }
             }
@@ -158,10 +195,19 @@ public class PoliticianLogic {
                 for (int j = 0; j < length; j++) {
                     RobotInfo robotInfo = sortedByRadius[i][j];
                     if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER || robotInfo.team == enemy){
-                        for (int k = 0; k < numAllyECLocations; k++) {
-                            int distanceSquared = allyECLocations[k].distanceSquaredTo(robotInfo.location);
+                        for (int k = 0; k < numAllyECs; k++) {
+                            int distanceSquared = allyECs[k].location.distanceSquaredTo(robotInfo.location);
                             if(distanceSquared <= 2){
-                                allyECSurroundedBonus[i][j] += Math.pow(allyECSurroundedValue[k],3)/27.0;
+                                if(allyECSurroundedValue[k] >= 8){
+                                    enemyKillBounty[i][j] += 50+allyECs[k].influence/2.0;
+                                    enemyKillMultiplier[i][j] += 2;
+                                }else if(allyECSurroundedValue[k] >= 7){
+                                    enemyKillBounty[i][j] += 20+allyECs[k].influence/8.0;
+                                    enemyKillMultiplier[i][j] += 0.75;
+                                }else if(allyECSurroundedValue[k] >= 6){
+                                    enemyKillBounty[i][j] += 8;
+                                    enemyKillMultiplier[i][j] += 0.25;
+                                }
                             }
                         }
                     }
@@ -171,7 +217,8 @@ public class PoliticianLogic {
             double convictionUseOnEach;
             double effectiveness;
             //double bestEffectiveness = (sortedByRadiusLengths[0] == 4 && sortedByRadiusLengths[1] == 4)?empowerInfluence*0.3 : empowerInfluence*0.8;
-            double bestEffectiveness = empowerInfluence*0.5;
+            double boost = rc.getEmpowerFactor(rc.getTeam(),0);
+            double bestEffectiveness = empowerInfluence*0.7*Math.sqrt(boost);
             int bestActionRadius = -1;
             for (int i = 0; i < 6; i++) {
                 if(sortedByRadiusLengths[i] == 0){
@@ -187,35 +234,31 @@ public class PoliticianLogic {
                     int arrayLength = sortedByRadiusLengths[j];
                     for (int k = 0; k < arrayLength; k++) {
                         RobotInfo robotInfo = sortedByRadius[j][k];
-                        if(robotInfo.team == ally){
-                            if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
-                                effectiveness += convictionUseOnEach*0.1;
-                            }
-                        }else if(robotInfo.team == enemy){
+                        if(robotInfo.team == enemy){
                             if (robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
-                                if (robotInfo.conviction < convictionUseOnEach) {
-                                    effectiveness += empowerInfluence * 0.5;        //automatically empower
+                                if (robotInfo.conviction <= (convictionUseOnEach-1)*boost) {
+                                    effectiveness += empowerInfluence * 0.71 * boost;        //automatically empower
                                 }
-                                effectiveness += convictionUseOnEach * 0.8;
+                                effectiveness += convictionUseOnEach * 0.8* boost;
                             } else {
-                                if (robotInfo.conviction < convictionUseOnEach) {
+                                if (robotInfo.conviction <= (convictionUseOnEach-1)*boost) {
                                     //effectiveness += empowerInfluence * 0.1;            //might be overkill, but treat it as kill bonus
-                                    effectiveness += robotInfo.conviction;
-                                    //System.out.println("Ally EC Surrounded Bonus: " + robotInfo.ID+ ", "+ allyECSurroundedBonus[j][k]);
-                                    effectiveness += allyECSurroundedBonus[j][k];
+                                    effectiveness += robotInfo.conviction * (1+enemyKillMultiplier[j][k]);
+                                    //System.out.println("Ally EC Surrounded Bonus: " + robotInfo.ID+ ", "+ enemyKillBounty[j][k]);
+                                    effectiveness += enemyKillBounty[j][k];
                                 } else {
-                                    effectiveness += convictionUseOnEach * 0.5;
+                                    effectiveness += convictionUseOnEach * 0.85 * boost *(1+enemyKillMultiplier[j][k]/3.0);
                                 }
                             }
-                        }else{
-                            effectiveness += convictionUseOnEach;
-                            if(robotInfo.conviction < convictionUseOnEach){
-                                effectiveness += empowerInfluence * 0.5;        //automatically empower
+                        }else if (robotInfo.team == Team.NEUTRAL){
+                            effectiveness += convictionUseOnEach*boost;
+                            if(robotInfo.conviction <= (convictionUseOnEach-1)*boost){
+                                effectiveness += empowerInfluence * 0.71* boost;        //automatically empower
                             }
                         }
                     }
                 }
-                if(effectiveness > bestEffectiveness){
+                if(effectiveness >= bestEffectiveness){
                     bestEffectiveness = effectiveness;
                     bestActionRadius = possibleSmallerRadii[i];
                 }
@@ -301,21 +344,18 @@ public class PoliticianLogic {
                                 //System.out.println("Found ally target!");
                                 effectiveness += convictionUseOnEach*10;
                             }
-                            if(robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
-                                effectiveness += convictionUseOnEach*0.05;
-                            }
                         }else if(robotInfo.team == enemy){
                             if (robotInfo.type == RobotType.ENLIGHTENMENT_CENTER) {
                                 if(robotInfo.location.equals(getAbsCoords(targetLoc))){
                                     //System.out.println("Found enemy target!");
                                     effectiveness += convictionUseOnEach*10;
                                 }
-                                if (robotInfo.conviction < convictionUseOnEach) {
+                                if (robotInfo.conviction <= convictionUseOnEach-1) {
                                     effectiveness += empowerInfluence * 0.5;        //automatically empower
                                 }
                                 effectiveness += convictionUseOnEach * 0.3;
                             } else {
-                                if (robotInfo.conviction < convictionUseOnEach) {
+                                if (robotInfo.conviction <= convictionUseOnEach-1) {
                                     effectiveness += convictionUseOnEach * 0.4;            //might be overkill, but treat it as kill bonus
                                     //effectiveness += robotInfo.conviction*2;
                                 } else {
