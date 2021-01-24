@@ -238,7 +238,7 @@ public class PoliticianLogic {
                                 if (robotInfo.conviction <= (convictionUseOnEach-1)*boost) {
                                     effectiveness += empowerInfluence * 0.71 * boost;        //automatically empower
                                 }
-                                effectiveness += convictionUseOnEach * 0.4* boost;
+                                effectiveness += convictionUseOnEach * 0.8* boost;
                             } else {
                                 if (robotInfo.conviction <= (convictionUseOnEach-1)*boost) {
                                     //effectiveness += empowerInfluence * 0.1;            //might be overkill, but treat it as kill bonus

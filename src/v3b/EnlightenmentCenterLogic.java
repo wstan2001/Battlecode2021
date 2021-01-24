@@ -94,7 +94,7 @@ public class EnlightenmentCenterLogic {
             spawnRobot(RobotType.SLANDERER, "Random", new MapLocation(-1, -1), spawnInfluence);
             slandCooldown = 10;
         }
-        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.25) / 10.0) {
+        else if (rng.nextDouble() < Math.pow(rc.getInfluence(), 0.3) / 10.0) {
             //randomized spawn code
             //note we're not going to spawn slanderers in this state
             //System.out.println("Poli spawn prob: " + (0.35 + slandScore / 40.0));
@@ -145,7 +145,34 @@ public class EnlightenmentCenterLogic {
             }
         }
         else {
-            shouldSpawn = false;
+            //shouldSpawn = false;
+            shouldSpawn = true;
+            int numFoundEnemy = 0;
+                for (int i = 0; i < enemyECLoc.length; i++) {
+                    if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1)
+                        numFoundEnemy += 1;
+                }
+                if (numFoundEnemy > 0 && rng.nextDouble() < 0.5) {
+                    //send muck to enemy EC
+                    spawnType = "Targeting";
+                    spawnInfluence = 1;
+                    int temp = rng.nextInt(numFoundEnemy);
+                    for (int i = 0; i < enemyECLoc.length; i++) {
+                        if (enemyECLoc[i].x != -1 && enemyECLoc[i].y != -1) {
+                            if (temp == 0) {
+                                //send muckracker to this location
+                                spawnTarget = enemyECLoc[i];
+                                break;
+                            }
+                            else
+                                temp -= 1;
+                        }
+                    }
+                }
+                else {
+                    spawnType = "Random";
+                    spawnInfluence = 1;
+                }
         }
 
 
