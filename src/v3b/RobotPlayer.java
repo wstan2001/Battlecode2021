@@ -22,6 +22,7 @@ public strictfp class RobotPlayer {
 
     //EC state variables
     static int[] unitIDs = new int[50];        //keep track of IDs of units that will broadcast info; each turn, EC on processes batches of 20
+    static int[] defenderIDs = new int[75];
     static int[] slandIDs = new int[25];        //keep track of slanderer IDs
 
     static MapLocation targetECLoc = new MapLocation(-1, -1);           //prioritize neutral ECs, then enemy ECs
@@ -31,6 +32,7 @@ public strictfp class RobotPlayer {
     static int bombCooldown = -1;
     static int slandCooldown = -1;
     static int slandScore = 0;              //+1 for every nongenerating sland, +3 for every generating sland
+    static int numDefenders = 0;
 
     static MapLocation[] enemyECLoc = {new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1)};       // store normalized coordinates of enemy EC
     static MapLocation[] neutralECLoc = {new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1), new MapLocation(-1, -1)};      // store normalized coordinates of enemy EC

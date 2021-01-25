@@ -217,9 +217,12 @@ public class Pathing {
 
         double minPenalty = 999999;
         int[] temp = {0, 1, -1, 2, -2};        //move roughly according to general direction
+        int ccw = 1;
+        if (rng.nextInt(2) == 1)
+            ccw = -1; 
 
         for (int i : temp) {
-            Direction h = directions[(dirIdx + i + 8) % 8];
+            Direction h = directions[(dirIdx + ccw * i + 8) % 8];
             if (rc.canSenseLocation(curloc.add(h))) {
                 double adjPenalty = baseCooldown / rc.sensePassability(curloc.add(h));
                 if (rc.canMove(h) && adjPenalty < minPenalty - Math.abs(i)) {       //prioritize moving in given direction
