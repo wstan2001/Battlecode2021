@@ -25,6 +25,8 @@ public class EnlightenmentCenterLogic {
         //System.out.println("Conviction: " + rc.getConviction());
         //System.out.println("Influence: " + rc.getInfluence());
 
+
+
         int sensorRadius = rc.getType().sensorRadiusSquared;
         for (RobotInfo robot : rc.senseNearbyRobots(sensorRadius, enemy)) {
             if (robot.type == RobotType.MUCKRAKER || robot.type == RobotType.ENLIGHTENMENT_CENTER) {
@@ -102,7 +104,7 @@ public class EnlightenmentCenterLogic {
                     else {
                         if (numDefenders < defenderIDs.length) {
                             spawnType = "Troop";
-                            spawnInfluence = rc.getInfluence() / 10;
+                            spawnInfluence = rc.getInfluence() / 20;
                             spawnInfluence = Math.max(spawnInfluence, 17);
                         }
                         else {

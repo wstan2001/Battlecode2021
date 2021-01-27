@@ -13,6 +13,10 @@ public class SlandererLogic {
         Team ally = rc.getTeam();
         Team enemy = ally.opponent();
 
+        if(ecID == 0) {
+            ecID = getECID();
+        }
+
         if (rc.getFlag(rc.getID()) == 0)
             rc.setFlag(encodeInstruction(Flag.OPCODE.SLAND, 0, 0, rc.getRoundNum()));
 
@@ -32,19 +36,17 @@ public class SlandererLogic {
             moveSlander(away);
         }
         else {
-            Direction away = Direction.CENTER;
-            RobotInfo[] nearbyAlly = rc.senseNearbyRobots(5, ally);
-            for (RobotInfo rinfo : nearbyAlly) {
-                if (rinfo.getType() == RobotType.ENLIGHTENMENT_CENTER) {
-                    //don't clog own EC
-                    away = oppositeDir(selfLoc.directionTo(rinfo.getLocation()));
-                    break;
-                }
-            }
-            if (away != Direction.CENTER)
+            Direction away = oppositeDir(rc.getLocation().directionTo(homeLoc));
+            
+            if (rc.getLocation().distanceSquaredTo(homeLoc) <= 5) {
                 moveSlander(away);
-            else if (rng.nextDouble() < 0.2)
+            }
+            else if (rc.getLocation().distanceSquaredTo(homeLoc) > 36) {
+                moveSlander(oppositeDir(away));             //don't let slanderer get too far away
+            }
+            else if (rng.nextDouble() < 0.2) {
                 moveSlander(directions[rng.nextInt(8)]);
+            }
             //slanderers generally don't move unless too close to EC or muckraker nearby
         }
     }
