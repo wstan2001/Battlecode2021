@@ -33,6 +33,11 @@ ALLYEC: ^ for ally EC.
 
 ### Enlightenment Center: 
 
+Responsible for bidding and spawning.
+
+Attempts to spawn large influence slanderers once every 10 turns. Besides that, will spawn a high influence politician (bomb) if it detects
+it can take out a neutral/enemy EC or troop politicians if it has many slanderers to protect. Otherwise, it will spawn 1 influence muckrakers.
+
 ### Politician:
 
 There are two main types of politicians: troops and bombs.
